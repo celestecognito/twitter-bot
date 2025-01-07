@@ -123,7 +123,7 @@ ENGAGEMENT_PATTERNS = {
         'Breaking update:', 'Exclusive insight:'
     ],
     'engagement': [
-        'Agree?', 'Thoughts?', 'What's your take?',
+        'Agree?', 'Thoughts?', "What's your take?",
         'Your view?', 'Predictions?'
     ]
 }
