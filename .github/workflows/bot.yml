@@ -29,4 +29,4 @@ jobs:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         ACCESS_TOKEN_SECRET: ${{ secrets.ACCESS_TOKEN_SECRET }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python gitbot.py
+      run: python gitbot.py
