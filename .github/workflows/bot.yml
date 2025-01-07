@@ -24,9 +24,9 @@ jobs:
     
     - name: Run bot
       env:
-        CONSUMER_KEY: ${{ secrets.CONSUMER_KEY }}
+        CONSUMER_KEY: ${{ secrets.CONSUMER_KEY }} 
         CONSUMER_SECRET: ${{ secrets.CONSUMER_SECRET }}
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         ACCESS_TOKEN_SECRET: ${{ secrets.ACCESS_TOKEN_SECRET }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      run: python bot.py
+        run: python gitbot.py
