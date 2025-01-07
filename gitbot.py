@@ -4,6 +4,7 @@ import random
 import json
 import openai
 import os
+import openai
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
