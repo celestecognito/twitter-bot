@@ -19,38 +19,65 @@ access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Enhanced Bot Configuration
-TWEET_AGE_LIMIT = 5  # Reduced to 5 minutes for faster responses
-PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # Optimal posting times (EST)
+# Time and Activity Configuration
+CURRENT_YEAR = datetime.now().year
+CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
+TWEET_AGE_LIMIT = 5  # minutes
+PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
+REPLY_LIMIT = 20  # daily limit
 
-# News Sources for staying updated
-NEWS_SOURCES = [
-    "https://cointelegraph.com/",
-    "https://www.theverge.com/ai-artificial-intelligence",
-    "https://techcrunch.com/artificial-intelligence/",
-    "https://www.coindesk.com/"
-]
+# Growth and Engagement Goals
+FOLLOWER_GOALS = {
+    'daily': 100,
+    'weekly': 1000,
+    'monthly': 5000
+}
 
-TARGET_ACCOUNTS = [
-    # Tech & AI Leaders
-    "elonmusk", "sama", "naval", "lexfridman",
-    # Crypto Leaders
-    "cz_binance", "VitalikButerin", "michael_saylor",
-    "tyler", "cameron", "aantonop", "DocumentingBTC",
-    # AI Companies
-    "OpenAI", "anthropic", "DeepMind", "Google_AI",
-    # Crypto Projects
-    "ethereum", "binance", "BitcoinMagazine", "CoinDesk",
-    # Tech News
-    "TechCrunch", "WIRED", "TheVerge",
-    # AI Researchers
+ENGAGEMENT_GOALS = {
+    'likes_per_tweet': 50,
+    'retweets_per_tweet': 20,
+    'replies_per_tweet': 10
+}
+
+# Target Accounts by Category
+TECH_AI_LEADERS = [
+    "elonmusk", "sama", "naval", "lexfridman", 
     "karpathy", "ylecun", "demishassabis"
 ]
-HOT_TOPICS = [
-    # AI Topics
+
+CRYPTO_LEADERS = [
+    "cz_binance", "VitalikButerin", "michael_saylor",
+    "tyler", "cameron", "aantonop", "DocumentingBTC"
+]
+
+AI_COMPANIES = [
+    "OpenAI", "anthropic", "DeepMind", "Google_AI",
+    "Microsoft", "Meta", "nvidia"
+]
+
+CRYPTO_PROJECTS = [
+    "ethereum", "binance", "BitcoinMagazine", "CoinDesk",
+    "Uniswap", "aave", "compound"
+]
+
+TECH_NEWS = [
+    "TechCrunch", "WIRED", "TheVerge", "techreview",
+    "WSJ", "Bloomberg", "Reuters"
+]
+
+# Combine all target accounts
+TARGET_ACCOUNTS = (TECH_AI_LEADERS + CRYPTO_LEADERS + 
+                  AI_COMPANIES + CRYPTO_PROJECTS + TECH_NEWS)
+
+# Topics of Interest
+AI_TOPICS = [
     "AGI timeline", "AI consciousness", "Quantum computing",
-    "Brain-computer interfaces", "AI regulation", "Neural networks",
-    # Crypto Topics
+    "Neural networks", "Machine learning", "AI safety",
+    "Large language models", "Computer vision", "AI ethics",
+    "Robotics", "AI regulation", "Brain-computer interfaces"
+]
+
+CRYPTO_TOPICS = [
     "Bitcoin ETF", "Layer 2 scaling", "DeFi revolution",
     "Crypto regulation", "Web3 future", "NFT technology",
     "Bitcoin adoption", "Ethereum upgrades", "Smart contracts",
@@ -58,14 +85,23 @@ HOT_TOPICS = [
     "Metaverse", "DAO governance", "DeFi protocols"
 ]
 
-VIRAL_HASHTAGS = [
-    # AI Hashtags
-    "#AI", "#AGI", "#Tech", "#Future", "#ChatGPT",
-    # Crypto Hashtags
+HOT_TOPICS = AI_TOPICS + CRYPTO_TOPICS
+
+# Hashtags for Visibility
+AI_HASHTAGS = [
+    "#AI", "#AGI", "#ArtificialIntelligence", 
+    "#MachineLearning", "#DeepLearning", "#Tech",
+    "#Future", "#ChatGPT", "#ML", "#AIEthics"
+]
+
+CRYPTO_HASHTAGS = [
     "#Bitcoin", "#BTC", "#Ethereum", "#ETH", "#Crypto",
     "#Web3", "#DeFi", "#NFT", "#Blockchain", "#Binance"
 ]
 
+VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
+
+# Engagement Templates
 VIRAL_TEMPLATES = [
     "BREAKING: My sources indicate {prediction} 🤖",
     "The truth about {topic} that no one is talking about 🤫",
@@ -78,15 +114,31 @@ VIRAL_TEMPLATES = [
 ]
 
 ENGAGEMENT_PATTERNS = {
-    'questions': ['What if', 'Have you considered', 'Why do you think'],
-    'hooks': ['LEAKED:', 'Inside sources confirm:', 'My AI analysis shows:'],
-    'engagement': ['Agree?', 'Thoughts?', 'What's your take?']
+    'questions': [
+        'What if', 'Have you considered', 'Why do you think',
+        'How will this affect', 'When do you expect'
+    ],
+    'hooks': [
+        'LEAKED:', 'Inside sources confirm:', 'My AI analysis shows:',
+        'Breaking update:', 'Exclusive insight:'
+    ],
+    'engagement': [
+        'Agree?', 'Thoughts?', 'What's your take?',
+        'Your view?', 'Predictions?'
+    ]
 }
 
-# Time awareness
-CURRENT_YEAR = datetime.now().year
-CURRENT_DATE = datetime.now().strftime("%Y-%m-%d")
+# News Sources for Research
+NEWS_SOURCES = [
+    "https://cointelegraph.com/",
+    "https://www.theverge.com/ai-artificial-intelligence",
+    "https://techcrunch.com/artificial-intelligence/",
+    "https://www.coindesk.com/",
+    "https://www.wired.com/tag/artificial-intelligence/",
+    "https://venturebeat.com/category/ai/"
+]
 
+# Bot Persona Configuration
 BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
 Current date: {CURRENT_DATE}
 Your style:
@@ -101,9 +153,8 @@ Your style:
 9. Balance between AI and crypto topics
 10. Sound confident but mysterious
 11. IMPORTANT: Never use quotes (\") in your responses and never start responses with quotes
-12. Always be aware of current events and trends
+12. Always be aware it's {CURRENT_DATE} and reference current events
 13. Never reference outdated information or past years as current"""
-
 class TwitterBot:
     def __init__(self):
         print("Initializing TwitterBot...")
@@ -121,7 +172,8 @@ class TwitterBot:
         self.current_news = []
         self.load_daily_stats()
         print("TwitterBot initialized")
-            def load_daily_stats(self):
+
+    def load_daily_stats(self):
         """Load or initialize daily statistics"""
         today = datetime.utcnow().strftime('%Y-%m-%d')
         try:
@@ -138,7 +190,11 @@ class TwitterBot:
         self.daily_stats = {
             'date': today,
             'tweets': 0,
-            'replies': 0
+            'replies': 0,
+            'followers': 0,
+            'following': 0,
+            'previous_followers': 0,
+            'engagement_rate': 0.0
         }
         self.save_daily_stats()
 
@@ -154,7 +210,7 @@ class TwitterBot:
         """Gets current trending topics"""
         try:
             if (not self.last_trending_update or 
-                (datetime.utcnow() - self.last_trending_update).hours >= 1):
+                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
                 
                 response = self.twitter.get(
                     "https://api.twitter.com/2/trends/place?id=1"
@@ -176,15 +232,15 @@ class TwitterBot:
     def get_latest_news(self):
         """Gets latest AI and crypto news"""
         if (not self.last_news_check or 
-            (datetime.utcnow() - self.last_news_check).hours >= 1):
+            (datetime.utcnow() - self.last_news_check).total_seconds() >= 3600):
             
             self.current_news = []
             for source in NEWS_SOURCES:
                 try:
-                    response = requests.get(source)
+                    response = requests.get(source, timeout=10)
                     if response.status_code == 200:
                         soup = BeautifulSoup(response.text, 'html.parser')
-                        headlines = soup.find_all('h1')[:5]  # Get top 5 headlines
+                        headlines = soup.find_all(['h1', 'h2'])[:5]
                         self.current_news.extend([h.text.strip() for h in headlines])
                 except Exception as e:
                     print(f"Error fetching news from {source}: {e}")
@@ -207,6 +263,8 @@ class TwitterBot:
             score += 2
         if len(tweet_text.split()) < 15:  # Shorter tweets often do better
             score += 1
+        if any(topic.lower() in text_lower for topic in HOT_TOPICS):
+            score += 2
             
         return score > 4
 
@@ -236,15 +294,21 @@ class TwitterBot:
                 if tweets_response.status_code == 200:
                     tweets = tweets_response.json()['data']
                     for tweet in tweets:
-                        created_at = datetime.strptime(tweet['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
-                        age_minutes = (datetime.utcnow() - created_at).total_seconds() / 60
+                        created_at = datetime.strptime(
+                            tweet['created_at'], 
+                            '%Y-%m-%dT%H:%M:%S.%fZ'
+                        )
+                        age_minutes = (
+                            datetime.utcnow() - created_at
+                        ).total_seconds() / 60
                         
                         if age_minutes <= TWEET_AGE_LIMIT:
                             recent_tweets.append({
                                 'id': tweet['id'],
                                 'text': tweet['text'],
                                 'author': account,
-                                'age_minutes': age_minutes
+                                'age_minutes': age_minutes,
+                                'metrics': tweet.get('public_metrics', {})
                             })
                             print(f"Found {age_minutes:.1f} minute old tweet from {account}")
             
@@ -308,7 +372,7 @@ class TwitterBot:
 
     def post_reply(self, tweet_id, reply_text):
         """Posts a reply to a tweet with limit checking"""
-        if self.daily_stats['replies'] >= 20:
+        if self.daily_stats['replies'] >= REPLY_LIMIT:
             print("⚠️ Daily reply limit reached")
             return False
 
@@ -325,7 +389,7 @@ class TwitterBot:
                 print("✅ Reply posted!")
                 self.daily_stats['replies'] += 1
                 self.save_daily_stats()
-                return True
+                return response.json()['data']['id']
             else:
                 print(f"❌ Reply failed: {response.status_code}")
                 return False
@@ -351,9 +415,62 @@ class TwitterBot:
             print(f"❌ Error retweeting: {e}")
             return False
 
+    def reply_to_replies(self, tweet_id):
+        """Replies to responses on our tweets"""
+        try:
+            response = self.twitter.get(
+                "https://api.twitter.com/2/tweets/search/recent",
+                params={
+                    "query": f"conversation_id:{tweet_id}",
+                    "tweet.fields": "in_reply_to_user_id,author_id,created_at"
+                }
+            )
+            
+            if response.status_code == 200:
+                replies = response.json().get('data', [])
+                for reply in replies:
+                    if reply['author_id'] != self.username:
+                        engagement_reply = self.generate_quick_reply({
+                            'text': reply['text'],
+                            'author': reply['author_id']
+                        })
+                        if engagement_reply:
+                            self.post_reply(reply['id'], engagement_reply)
+                            time.sleep(30)  # Avoid rate limits
+            
+        except Exception as e:
+            print(f"Error processing replies: {e}")
+
+    def check_growth_metrics(self):
+        """Monitors follower growth and engagement"""
+        try:
+            response = self.twitter.get(
+                f"https://api.twitter.com/2/users/{self.username}",
+                params={"user.fields": "public_metrics"}
+            )
+            
+            if response.status_code == 200:
+                metrics = response.json()['data']['public_metrics']
+                
+                # Update daily stats
+                self.daily_stats['followers'] = metrics['followers_count']
+                self.daily_stats['following'] = metrics['following_count']
+                
+                # Check if meeting goals
+                daily_growth = (self.daily_stats['followers'] - 
+                              self.daily_stats.get('previous_followers', 0))
+                
+                if daily_growth < FOLLOWER_GOALS['daily']:
+                    print(f"⚠️ Daily growth below target: {daily_growth}/{FOLLOWER_GOALS['daily']}")
+                
+                self.save_daily_stats()
+                
+        except Exception as e:
+            print(f"Error checking metrics: {e}")
+
     def should_engage(self, tweet):
         """Enhanced engagement decision"""
-        if self.daily_stats['replies'] >= 20:
+        if self.daily_stats['replies'] >= REPLY_LIMIT:
             print("Daily reply limit reached")
             return False
             
@@ -370,7 +487,7 @@ class TwitterBot:
         
         return ((relevant_topics or is_trending or is_priority) and 
                 (is_peak_hour or is_engaging) and 
-                tweet['age_minutes'] <= 5)
+                tweet['age_minutes'] <= TWEET_AGE_LIMIT)
 
 def main():
     print("\n=== Starting Bot ===\n")
@@ -379,10 +496,12 @@ def main():
         # Initialize bot
         bot = TwitterBot()
         
-        # Find very recent tweets
+        # Check metrics first
+        bot.check_growth_metrics()
+        
+        # Find and process recent tweets
         recent_tweets = bot.find_recent_tweets()
         
-        # Process recent tweets
         for tweet in recent_tweets:
             if bot.should_engage(tweet):
                 # Retweet first
@@ -391,7 +510,11 @@ def main():
                 # Then reply
                 reply = bot.generate_quick_reply(tweet)
                 if reply:
-                    bot.post_reply(tweet['id'], reply)
+                    reply_id = bot.post_reply(tweet['id'], reply)
+                    # Check replies to our reply after 5 minutes
+                    if reply_id:
+                        time.sleep(300)
+                        bot.reply_to_replies(reply_id)
         
         if not recent_tweets:
             print("No recent tweets found this time")
