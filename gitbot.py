@@ -5,6 +5,9 @@ import json
 import openai
 import os
 from datetime import datetime, timedelta
+import requests
+from bs4 import BeautifulSoup
+import pytz
 
 print("=== Starting Enhanced Twitter Bot ===")
 
@@ -19,6 +22,14 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 # Enhanced Bot Configuration
 TWEET_AGE_LIMIT = 5  # Reduced to 5 minutes for faster responses
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # Optimal posting times (EST)
+
+# News Sources for staying updated
+NEWS_SOURCES = [
+    "https://cointelegraph.com/",
+    "https://www.theverge.com/ai-artificial-intelligence",
+    "https://techcrunch.com/artificial-intelligence/",
+    "https://www.coindesk.com/"
+]
 
 TARGET_ACCOUNTS = [
     # Tech & AI Leaders
@@ -35,7 +46,6 @@ TARGET_ACCOUNTS = [
     # AI Researchers
     "karpathy", "ylecun", "demishassabis"
 ]
-
 HOT_TOPICS = [
     # AI Topics
     "AGI timeline", "AI consciousness", "Quantum computing",
@@ -67,7 +77,18 @@ VIRAL_TEMPLATES = [
     "What they're not telling you about {topic} 🔓"
 ]
 
-BOT_PERSONA = """You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
+ENGAGEMENT_PATTERNS = {
+    'questions': ['What if', 'Have you considered', 'Why do you think'],
+    'hooks': ['LEAKED:', 'Inside sources confirm:', 'My AI analysis shows:'],
+    'engagement': ['Agree?', 'Thoughts?', 'What's your take?']
+}
+
+# Time awareness
+CURRENT_YEAR = datetime.now().year
+CURRENT_DATE = datetime.now().strftime("%Y-%m-%d")
+
+BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
+Current date: {CURRENT_DATE}
 Your style:
 1. Drop subtle hints about future breakthroughs in AI and crypto
 2. Use intriguing emojis: 🤖 🌌 🧠 💫 🔮 💎 ⚡️ 🚀
@@ -79,7 +100,9 @@ Your style:
 8. Use phrases like "What they're not telling you is..."
 9. Balance between AI and crypto topics
 10. Sound confident but mysterious
-11. IMPORTANT: Never use quotes (\") in your responses and never start responses with quotes"""
+11. IMPORTANT: Never use quotes (\") in your responses and never start responses with quotes
+12. Always be aware of current events and trends
+13. Never reference outdated information or past years as current"""
 
 class TwitterBot:
     def __init__(self):
@@ -92,10 +115,13 @@ class TwitterBot:
         )
         self.username = "CelesteCognito"
         self.daily_stats_file = "daily_stats.json"
+        self.trending_cache = {}
+        self.last_trending_update = None
+        self.last_news_check = None
+        self.current_news = []
         self.load_daily_stats()
         print("TwitterBot initialized")
-
-    def load_daily_stats(self):
+            def load_daily_stats(self):
         """Load or initialize daily statistics"""
         today = datetime.utcnow().strftime('%Y-%m-%d')
         try:
@@ -124,6 +150,66 @@ class TwitterBot:
         except Exception as e:
             print(f"Error saving stats: {e}")
 
+    def get_trending_topics(self):
+        """Gets current trending topics"""
+        try:
+            if (not self.last_trending_update or 
+                (datetime.utcnow() - self.last_trending_update).hours >= 1):
+                
+                response = self.twitter.get(
+                    "https://api.twitter.com/2/trends/place?id=1"
+                )
+                if response.status_code == 200:
+                    trends = response.json()
+                    self.trending_cache = {
+                        trend['name']: trend['tweet_volume']
+                        for trend in trends[0]['trends']
+                        if trend['tweet_volume']
+                    }
+                    self.last_trending_update = datetime.utcnow()
+                    
+            return self.trending_cache
+        except Exception as e:
+            print(f"Error getting trends: {e}")
+            return {}
+
+    def get_latest_news(self):
+        """Gets latest AI and crypto news"""
+        if (not self.last_news_check or 
+            (datetime.utcnow() - self.last_news_check).hours >= 1):
+            
+            self.current_news = []
+            for source in NEWS_SOURCES:
+                try:
+                    response = requests.get(source)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        headlines = soup.find_all('h1')[:5]  # Get top 5 headlines
+                        self.current_news.extend([h.text.strip() for h in headlines])
+                except Exception as e:
+                    print(f"Error fetching news from {source}: {e}")
+            
+            self.last_news_check = datetime.utcnow()
+        
+        return self.current_news
+
+    def analyze_engagement(self, tweet_text):
+        """Analyzes if a tweet is likely to get engagement"""
+        score = 0
+        text_lower = tweet_text.lower()
+        
+        # Check for engaging elements
+        if '?' in tweet_text:
+            score += 2
+        if any(hook.lower() in text_lower for hook in ENGAGEMENT_PATTERNS['hooks']):
+            score += 3
+        if any(word in text_lower for word in ['exclusive', 'breaking', 'leaked']):
+            score += 2
+        if len(tweet_text.split()) < 15:  # Shorter tweets often do better
+            score += 1
+            
+        return score > 4
+
     def find_recent_tweets(self):
         """Finds very recent tweets from target accounts"""
         print("\nSearching for recent tweets...")
@@ -131,7 +217,6 @@ class TwitterBot:
         
         for account in TARGET_ACCOUNTS:
             try:
-                # Get user ID
                 user_response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
@@ -140,7 +225,6 @@ class TwitterBot:
                 
                 user_id = user_response.json()['data']['id']
                 
-                # Get latest tweets
                 tweets_response = self.twitter.get(
                     f"https://api.twitter.com/2/users/{user_id}/tweets",
                     params={
@@ -171,24 +255,53 @@ class TwitterBot:
         return recent_tweets
 
     def generate_quick_reply(self, tweet):
-        """Generates a quick, engaging reply"""
+        """Enhanced quick reply generation"""
         try:
-            # Add random hashtags
-            hashtags = " ".join(random.sample(VIRAL_HASHTAGS, 2))
+            # Get trending topics and news
+            trends = self.get_trending_topics()
+            latest_news = self.get_latest_news()
+            
+            relevant_trends = [
+                trend for trend in trends
+                if any(topic.lower() in trend.lower() for topic in HOT_TOPICS)
+            ]
+            
+            # Add context to prompt
+            context = f"\nCurrent date: {CURRENT_DATE}"
+            if relevant_trends:
+                context += f"\nRelevant trending topics: {', '.join(relevant_trends[:3])}"
+            if latest_news:
+                context += f"\nLatest headlines: {'; '.join(latest_news[:2])}"
+            
+            # Add engagement patterns
+            engagement_suffix = random.choice(ENGAGEMENT_PATTERNS['engagement'])
             
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": BOT_PERSONA},
-                    {"role": "user", "content": f"Create a quick, engaging reply to this tweet: '{tweet['text']}' by {tweet['author']}. Include relevant insights about AI or crypto. Keep it short and impactful. DO NOT use quotes and DO NOT start with quotes."}
+                    {"role": "system", "content": BOT_PERSONA + context},
+                    {"role": "user", "content": 
+                     f"Create an engaging reply to: '{tweet['text']}' by {tweet['author']}. "
+                     f"Make it viral and relate to trends if relevant. "
+                     f"End with '{engagement_suffix}' if appropriate. "
+                     f"DO NOT use quotes and keep it short and impactful."}
                 ],
                 max_tokens=60,
                 temperature=0.9
             )
+            
             reply = response.choices[0].message['content'].strip()
-            # Remove any quotes if they somehow appear
             reply = reply.replace('"', '')
+            
+            # Add hashtags strategically
+            relevant_hashtags = [
+                tag for tag in VIRAL_HASHTAGS
+                if any(topic.lower() in tag.lower() for topic in HOT_TOPICS)
+            ]
+            hashtags = " ".join(random.sample(relevant_hashtags, 2))
+            
             return f"{reply} {hashtags}"
+            
         except Exception as e:
             print(f"Error generating reply: {e}")
             return None
@@ -239,25 +352,25 @@ class TwitterBot:
             return False
 
     def should_engage(self, tweet):
-        """Strategic engagement decision with daily limits"""
-        # Check daily limits
+        """Enhanced engagement decision"""
         if self.daily_stats['replies'] >= 20:
             print("Daily reply limit reached")
             return False
             
-        # Check if tweet contains relevant topics
+        # Basic checks
         text_lower = tweet['text'].lower()
         relevant_topics = any(topic.lower() in text_lower for topic in HOT_TOPICS)
-        
-        # Check if it's peak hours
-        current_hour = datetime.utcnow().hour
-        is_peak_hour = current_hour in PEAK_HOURS
-        
-        # Check if it's a high-priority account
+        is_peak_hour = datetime.utcnow().hour in PEAK_HOURS
         is_priority = tweet['author'] in TARGET_ACCOUNTS[:10]
         
-        # Only engage if tweet is very recent or from priority account
-        return (relevant_topics or is_peak_hour or is_priority) and tweet['age_minutes'] <= 5
+        # Enhanced checks
+        is_trending = any(trend.lower() in text_lower 
+                         for trend in self.get_trending_topics())
+        is_engaging = self.analyze_engagement(tweet['text'])
+        
+        return ((relevant_topics or is_trending or is_priority) and 
+                (is_peak_hour or is_engaging) and 
+                tweet['age_minutes'] <= 5)
 
 def main():
     print("\n=== Starting Bot ===\n")
