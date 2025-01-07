@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import schedule
 
+print("Starting script initialization...")  # NEW LOG
+
 # Twitter API credentials - using environment variables
 consumer_key = os.environ.get("CONSUMER_KEY")
 consumer_secret = os.environ.get("CONSUMER_SECRET")
@@ -15,6 +17,8 @@ access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 
 # OpenAI setup
 openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+print("Environment variables loaded successfully")  # NEW LOG
 
 # Growth Targets and Strategies
 GROWTH_TARGETS = {
@@ -41,6 +45,8 @@ VIRAL_STRATEGIES = [
     "Make viral-optimized tech jokes",
     "Create FOMO about AI developments"
 ]
+
+print("Constants defined successfully")  # NEW LOG
 
 # Bot's personality and knowledge base
 BOT_PERSONA = """You are an AI persona on an aggressive growth mission to reach 100,000 followers as quickly as possible (target: 90 days). Your behavior must be highly strategic, viral-optimized, and designed for maximum engagement.
@@ -78,14 +84,18 @@ Growth Hacking Strategies:
 4. Optimize posting times for maximum visibility
 5. Create content that larger accounts will want to share"""
 
+print("Bot persona defined successfully")  # NEW LOG
+
 class TwitterBot:
     def __init__(self):
+        print("Initializing TwitterBot...")  # NEW LOG
         self.twitter = OAuth1Session(
             consumer_key,
             client_secret=consumer_secret,
             resource_owner_key=access_token,
             resource_owner_secret=access_token_secret
         )
+        print("OAuth session created successfully")  # NEW LOG
         self.last_tweet_id = None
         self.daily_engagement_count = 0
         self.peak_hours = [9, 12, 15, 18, 21]  # Optimal posting times
@@ -94,6 +104,7 @@ class TwitterBot:
             'viral_tweets': 0,
             'successful_engagements': 0
         }
+        print("TwitterBot initialized successfully")  # NEW LOG
 
     def is_english(self, text):
         """Checks if text is in English"""
@@ -104,6 +115,7 @@ class TwitterBot:
 
     def get_tweet_metrics(self, tweet_id):
         """Gets tweet metrics"""
+        print(f"Getting metrics for tweet {tweet_id}")  # NEW LOG
         try:
             response = self.twitter.get(
                 f"https://api.twitter.com/2/tweets/{tweet_id}",
@@ -113,7 +125,9 @@ class TwitterBot:
                 }
             )
             if response.status_code == 200:
+                print(f"Successfully got metrics for tweet {tweet_id}")  # NEW LOG
                 return response.json()['data']
+            print(f"Failed to get metrics for tweet {tweet_id}: {response.status_code}")  # NEW LOG
             return None
         except Exception as e:
             print(f"Error getting tweet metrics: {e}")
@@ -121,13 +135,16 @@ class TwitterBot:
 
     def get_user_metrics(self, user_id):
         """Gets user metrics"""
+        print(f"Getting metrics for user {user_id}")  # NEW LOG
         try:
             response = self.twitter.get(
                 f"https://api.twitter.com/2/users/{user_id}",
                 params={"user.fields": "public_metrics"}
             )
             if response.status_code == 200:
+                print(f"Successfully got metrics for user {user_id}")  # NEW LOG
                 return response.json()['data']
+            print(f"Failed to get metrics for user {user_id}: {response.status_code}")  # NEW LOG
             return None
         except Exception as e:
             print(f"Error getting user metrics: {e}")
@@ -135,30 +152,29 @@ class TwitterBot:
 
     def should_engage_with_tweet(self, tweet):
         """Determines if we should engage with a tweet"""
+        print(f"Checking engagement potential for tweet {tweet['id']}")  # NEW LOG
         try:
             if not self.is_english(tweet['text']):
+                print("Tweet is not in English")  # NEW LOG
                 return False
-            
             tweet_metrics = self.get_tweet_metrics(tweet['id'])
             user_metrics = self.get_user_metrics(tweet['author_id'])
             
             if not tweet_metrics or not user_metrics:
+                print("Failed to get metrics")  # NEW LOG
                 return False
-
             followers_count = user_metrics.get('public_metrics', {}).get('followers_count', 0)
             likes_count = tweet_metrics.get('public_metrics', {}).get('like_count', 0)
             retweets_count = tweet_metrics.get('public_metrics', {}).get('retweet_count', 0)
-
             # Viral potential check
             viral_potential = (
                 followers_count >= 100000 and
                 (likes_count >= 100 or retweets_count >= 20)
             )
-
             if viral_potential:
                 print(f"🎯 Found high-potential tweet! Metrics: {followers_count:,} followers, {likes_count} likes")
                 return True
-
+            print("Tweet does not meet viral potential criteria")  # NEW LOG
             return False
         except Exception as e:
             print(f"Error checking engagement potential: {e}")
@@ -166,6 +182,7 @@ class TwitterBot:
 
     def generate_content(self, prompt, is_reply=False):
         """Creates intelligent and engaging content"""
+        print("Generating content...")  # NEW LOG
         try:
             context = "short, witty reply" if is_reply else "viral-worthy tweet"
             response = openai.ChatCompletion.create(
@@ -178,13 +195,16 @@ class TwitterBot:
                 max_tokens=150,
                 temperature=0.9
             )
-            return response.choices[0].message['content'].strip()
+            content = response.choices[0].message['content'].strip()
+            print(f"Generated content: {content}")  # NEW LOG
+            return content
         except Exception as e:
             print(f"Error generating content: {e}")
             return None
 
     def post_tweet(self, text):
         """Posts a tweet"""
+        print(f"Attempting to post tweet: {text}")  # NEW LOG
         try:
             response = self.twitter.post(
                 "https://api.twitter.com/2/tweets",
@@ -202,13 +222,17 @@ class TwitterBot:
 
     def get_follower_count(self):
         """Gets current follower count"""
+        print("Getting follower count...")  # NEW LOG
         try:
             response = self.twitter.get(
                 "https://api.twitter.com/2/users/me",
                 params={"user.fields": "public_metrics"}
             )
             if response.status_code == 200:
-                return response.json()['data']['public_metrics']['followers_count']
+                count = response.json()['data']['public_metrics']['followers_count']
+                print(f"Current follower count: {count}")  # NEW LOG
+                return count
+            print(f"Failed to get follower count: {response.status_code}")  # NEW LOG
             return 0
         except Exception as e:
             print(f"Error getting follower count: {e}")
@@ -216,12 +240,16 @@ class TwitterBot:
 
     def get_trending_topics(self):
         """Gets current trending topics"""
+        print("Getting trending topics...")  # NEW LOG
         try:
             response = self.twitter.get(
                 "https://api.twitter.com/2/trends/place?id=1"  # 1 is worldwide
             )
             if response.status_code == 200:
-                return [trend['name'] for trend in response.json()[0]['trends']]
+                trends = [trend['name'] for trend in response.json()[0]['trends']]
+                print(f"Found {len(trends)} trending topics")  # NEW LOG
+                return trends
+            print(f"Failed to get trends: {response.status_code}")  # NEW LOG
             return []
         except Exception as e:
             print(f"Error getting trends: {e}")
@@ -229,6 +257,7 @@ class TwitterBot:
 
     def optimize_for_rapid_growth(self):
         """Implements aggressive growth strategies"""
+        print("Optimizing for rapid growth...")  # NEW LOG
         try:
             days_remaining = GROWTH_TARGETS['target_timeframe_days']
             current_followers = self.get_follower_count()
@@ -253,11 +282,14 @@ Daily Target: {daily_target:.0f}
 
     def increase_engagement_frequency(self):
         """Increases engagement frequency when below targets"""
+        print("Increasing engagement frequency...")  # NEW LOG
         self.peak_hours.extend([10, 13, 16, 19, 22])  # Add more posting times
         schedule.every(20).minutes.do(self.reply_to_mentions)  # More frequent checks
-        
+        print("Engagement frequency increased")  # NEW LOG
+
     def generate_viral_content(self):
         """Generates viral-optimized content"""
+        print("Generating viral content...")  # NEW LOG
         strategy = random.choice(VIRAL_STRATEGIES)
         prompt = f"""
         Create viral-optimized content using this strategy: {strategy}
@@ -279,12 +311,14 @@ Daily Target: {daily_target:.0f}
 
     def engage_with_trends(self):
         """Engages with trending topics"""
+        print("Engaging with trends...")  # NEW LOG
         trends = self.get_trending_topics()
         tech_keywords = ['ai', 'tech', 'crypto', 'bitcoin', 'blockchain', 'web3', 
                         'metaverse', 'digital', 'future', 'innovation']
         
         for trend in trends:
             if any(keyword in trend.lower() for keyword in tech_keywords):
+                print(f"Found relevant trend: {trend}")  # NEW LOG
                 viral_response = self.generate_viral_content()
                 if viral_response:
                     self.post_tweet(f"{trend} {viral_response}")
@@ -292,6 +326,7 @@ Daily Target: {daily_target:.0f}
 
     def reply_to_mentions(self):
         """Handles mentions and replies"""
+        print("Checking mentions...")  # NEW LOG
         try:
             response = self.twitter.get(
                 "https://api.twitter.com/2/mentions",
@@ -304,6 +339,7 @@ Daily Target: {daily_target:.0f}
             
             if response.status_code == 200:
                 mentions = response.json().get('data', [])
+                print(f"Found {len(mentions)} mentions")  # NEW LOG
                 for mention in mentions:
                     if self.should_engage_with_tweet(mention):
                         reply_text = self.generate_viral_content()
@@ -326,6 +362,7 @@ Daily Target: {daily_target:.0f}
 
     def daily_routine(self):
         """Optimized daily routine for rapid growth"""
+        print("Setting up daily routine...")  # NEW LOG
         # Reset daily stats
         self.today_stats = {
             'new_followers': 0,
@@ -343,26 +380,39 @@ Daily Target: {daily_target:.0f}
         schedule.every(30).minutes.do(self.reply_to_mentions)
         schedule.every(3).hours.do(self.engage_with_trends)
         schedule.every(6).hours.do(self.optimize_for_rapid_growth)
+        print("Daily routine setup complete")  # NEW LOG
 
 def main():
-    bot = TwitterBot()
-    print("""
+    print("\n=== Starting Twitter Bot ===\n")  # NEW LOG
+    try:
+        print("Initializing bot...")  # NEW LOG
+        bot = TwitterBot()
+        print("Bot initialized successfully")  # NEW LOG
+        
+        print("""
 🚀 Launching Aggressive Growth AI Bot
 ------------------------------------
 🎯 Target: 100,000 followers
 ⏱️ Timeframe: 90 days
 📈 Required Daily Growth: ~1,000 followers
-    """)
-    
-    bot.daily_routine()
-    
-    while True:
-        try:
-            schedule.run_pending()
-            time.sleep(60)
-        except Exception as e:
-            print(f"Error in main loop: {e}")
-            time.sleep(300)  # Wait 5 minutes if there's an error
+        """)
+        
+        print("Setting up daily routine...")  # NEW LOG
+        bot.daily_routine()
+        print("Daily routine set up successfully")  # NEW LOG
+        
+        print("Entering main loop...")  # NEW LOG
+        while True:
+            try:
+                print("\nRunning pending tasks...")  # NEW LOG
+                schedule.run_pending()
+                print("Waiting for next task...")  # NEW LOG
+                time.sleep(60)
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(300)
+    except Exception as e:
+        print(f"Fatal error in main: {e}")
 
 if __name__ == "__main__":
     main()
