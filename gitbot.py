@@ -43,6 +43,15 @@ class TwitterBot:
             resource_owner_secret=access_token_secret
         )
         
+        # בדיקת rate limit לפני הכל
+        wait_time = self.check_rate_limit()
+        if wait_time:
+            reset_time = datetime.now() + timedelta(seconds=wait_time)
+            msg = f"Rate limited. Will reset at {reset_time} (in {wait_time} seconds)"
+            logger.warning(msg)
+            raise Exception(msg)
+        
+        # אם אין rate limit, נמשיך לאימות
         response = self.twitter.get(
             "https://api.twitter.com/2/users/me",
             params={"user.fields": "id,username"}
@@ -74,11 +83,12 @@ class TwitterBot:
                     logger.info(f"Rate limit will reset at: {reset_datetime}")
                     logger.info(f"Time until reset: {wait_time} seconds")
                     
-                    if wait_time > 3600:  # אם זמן ההמתנה גדול משעה
+                    if wait_time > 3600:
                         logger.warning(f"Long rate limit detected: {wait_time/3600:.2f} hours")
                     return wait_time
                 else:
                     logger.warning("No reset time found in headers")
+                    return 900  # 15 minutes default
             return None
         except Exception as e:
             logger.error(f"Error checking rate limit: {e}")
@@ -156,14 +166,7 @@ class TwitterBot:
 
 def main():
     try:
-        bot = TwitterBot()
-        
-        # בדיקת rate limit לפני שמתחילים
-        wait_time = bot.check_rate_limit()
-        if wait_time:
-            logger.info(f"Rate limited. Will reset in {wait_time} seconds")
-            return
-            
+        bot = TwitterBot()  # יבדוק rate limit בהתחלה
         recent_tweets = bot.find_recent_tweets()
         
         for tweet in recent_tweets:
@@ -174,7 +177,7 @@ def main():
                     time.sleep(5)
                     
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     main()
