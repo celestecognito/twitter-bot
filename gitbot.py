@@ -183,7 +183,6 @@ class TwitterBot:
         self.daily_stats_file = 'daily_stats.json'
         self.daily_stats = {}
         self.load_daily_stats()
-        
         self.trending_cache = {}
         self.last_trending_update = None
         self.current_news = []
