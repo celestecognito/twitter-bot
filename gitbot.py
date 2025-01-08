@@ -225,7 +225,7 @@ class TwitterBot:
             engagement_score += 1
             print(f"✅ Target author (+1)")
         
-        return engagement_score >= 8
+        return engagement_score >= 1
 
     def load_daily_stats(self):
         """Load or initialize daily statistics"""
