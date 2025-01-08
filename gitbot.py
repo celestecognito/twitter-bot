@@ -213,7 +213,6 @@ class TwitterBot:
             traceback.print_exc()
 
     # Other methods remain unchanged...
-    [Rest of the class methods remain the same]
 
 def main():
     print("\n=== Starting Bot ===\n")
