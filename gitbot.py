@@ -64,15 +64,13 @@ class TwitterBot:
             user_data = response.json()['data']
             self.user_id = user_data['id']
             self.username = user_data['username']
-            logger.info(f"Authenticated as @{self.username}")
         else:
             raise Exception(f"Authentication failed: {response.status_code}")
 
     def find_recent_tweets(self):
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:5]:  # Check 5 accounts each run
+        for account in TARGET_ACCOUNTS[:5]:  # Changed from 3 to 5
             try:
-                logger.info(f"Checking tweets from {account}")
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
@@ -91,37 +89,29 @@ class TwitterBot:
                                 'text': tweet['text'],
                                 'author': account
                             })
-                            logger.info(f"Found tweet from {account}: {tweet['text'][:50]}...")
                 time.sleep(60)  # Wait between requests
                     
             except Exception as e:
                 logger.error(f"Error getting tweets from {account}: {e}")
                 continue
                 
-        logger.info(f"Total tweets found: {len(recent_tweets)}")
         return recent_tweets
 
     def should_engage(self, tweet):
-        for topic in HOT_TOPICS:
-            if topic.lower() in tweet['text'].lower():
-                logger.info(f"Found matching topic '{topic}' in tweet")
-                return True
-        return False
+        return any(topic.lower() in tweet['text'].lower() for topic in HOT_TOPICS)
 
     def generate_quick_reply(self, tweet):
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are an AI expert and crypto enthusiast. Keep responses short, engaging, and sometimes humorous."},
+                    {"role": "system", "content": "You are an AI expert. Keep responses short and engaging."},
                     {"role": "user", "content": f"Create a brief reply to: '{tweet['text']}'"}
                 ],
                 max_tokens=60,
                 temperature=0.7
             )
-            reply = response.choices[0].message['content'].strip()
-            logger.info(f"Generated reply: {reply}")
-            return reply
+            return response.choices[0].message['content'].strip()
         except Exception as e:
             logger.error(f"Error generating reply: {e}")
             return None
@@ -137,10 +127,7 @@ class TwitterBot:
             )
             
             if response.status_code in [200, 201]:
-                logger.info(f"Successfully posted reply: {reply_text}")
                 return response.json()['data']['id']
-            else:
-                logger.error(f"Failed to post reply. Status: {response.status_code}")
             return None
             
         except Exception as e:
@@ -149,7 +136,6 @@ class TwitterBot:
 
 def main():
     try:
-        logger.info("Starting bot...")
         bot = TwitterBot()
         recent_tweets = bot.find_recent_tweets()
         
