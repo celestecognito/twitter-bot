@@ -166,6 +166,9 @@ Your style:
 class TwitterBot:
     def __init__(self):
         logger.info("Starting TwitterBot initialization...")
+        max_retries = 5
+        retry_delay = 60  # seconds
+        
         try:
             logger.info("Creating OAuth session...")
             self.twitter = OAuth1Session(
@@ -177,53 +180,52 @@ class TwitterBot:
             logger.info("OAuth session created successfully")
             
             logger.info("Getting user info...")
-            response = self.twitter.get(
-                "https://api.twitter.com/2/users/me",
-                params={"user.fields": "id,username,public_metrics"}
-            )
-            logger.info(f"Twitter API Response Status: {response.status_code}")
-            logger.info(f"Twitter API Response: {response.text}")
-            
-            if response.status_code == 429:
-                logger.warning("Rate limit hit - waiting 30 seconds")
-                time.sleep(30)
+            for attempt in range(max_retries):
                 response = self.twitter.get(
                     "https://api.twitter.com/2/users/me",
                     params={"user.fields": "id,username,public_metrics"}
                 )
-            
-            if response.status_code == 200:
-                user_data = response.json()['data']
-                self.user_id = user_data['id']
-                self.username = user_data['username']
-                logger.info(f"✅ Successfully authenticated as @{self.username}")
+                logger.info(f"Attempt {attempt + 1}/{max_retries} - Status: {response.status_code}")
                 
-                self.daily_stats_file = 'daily_stats.json'
-                self.daily_stats = {
-                    'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
-                    'tweets': 0,
-                    'replies': 0,
-                    'followers': 0,
-                    'following': 0,
-                    'previous_followers': 0,
-                    'engagement_rate': 0.0
-                }
+                if response.status_code == 200:
+                    user_data = response.json()['data']
+                    self.user_id = user_data['id']
+                    self.username = user_data['username']
+                    logger.info(f"✅ Successfully authenticated as @{self.username}")
+                    
+                    self.daily_stats_file = 'daily_stats.json'
+                    self.daily_stats = {
+                        'date': datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+                        'tweets': 0,
+                        'replies': 0,
+                        'followers': 0,
+                        'following': 0,
+                        'previous_followers': 0,
+                        'engagement_rate': 0.0
+                    }
+                    
+                    self.load_daily_stats()
+                    self.trending_cache = {}
+                    self.last_trending_update = None
+                    self.current_news = []
+                    self.last_news_check = None
+                    self.LAST_REPLY_TIME = {}
+                    return
+                    
+                elif response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Rate limit hit - waiting {retry_delay} seconds before retry {attempt + 2}")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Double the delay for next attempt
+                        continue
                 
-                self.load_daily_stats()
-                self.trending_cache = {}
-                self.last_trending_update = None
-                self.current_news = []
-                self.last_news_check = None
-                self.LAST_REPLY_TIME = {}
-                
-            else:
                 error_msg = f"Failed to get user info. Status: {response.status_code}"
                 if response.status_code == 401:
                     error_msg += "\nAuthentication failed - check your API keys"
                 logger.error(f"❌ {error_msg}")
                 logger.error(f"Response: {response.text}")
                 raise Exception(error_msg)
-                
+                    
         except Exception as e:
             logger.error(f"❌ Initialization error: {str(e)}")
             traceback.print_exc()
@@ -331,8 +333,25 @@ class TwitterBot:
             logger.error(f"Error in should_engage: {e}")
             return False
 
+    def analyze_engagement(self, tweet_text):
+        score = 0
+        text_lower = tweet_text.lower()
+        
+        if '?' in tweet_text:
+            score += 2
+        if any(hook.lower() in text_lower for hook in ENGAGEMENT_PATTERNS['hooks']):
+            score += 3
+        if any(word in text_lower for word in ['exclusive', 'breaking', 'leaked']):
+            score += 2
+        if len(tweet_text.split()) < 15:
+            score += 1
+        if any(topic.lower() in text_lower for topic in HOT_TOPICS):
+            score += 2
+            
+        return score > 4
+
     def find_recent_tweets(self):
-        logger.info("Searching for recent tweets...")
+        logger.info("\nSearching for recent tweets...")
         recent_tweets = []
         
         for account in TARGET_ACCOUNTS[:5]:
@@ -383,7 +402,6 @@ class TwitterBot:
             
             except Exception as e:
                 logger.error(f"Error processing {account}: {e}")
-                traceback.print_exc()
                 continue
         
         return recent_tweets
