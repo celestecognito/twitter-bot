@@ -95,19 +95,22 @@ class TwitterBot:
             return False
 
     def find_recent_tweets(self):
+        logger.info("Starting to search for recent tweets...")
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:3]:  # Limit to 3 accounts per cycle
+        
+        for account in TARGET_ACCOUNTS[:3]:
             try:
-                time.sleep(WAIT_TIME)  # Wait between requests
+                logger.info(f"Checking tweets from {account}...")
                 
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
                 
+                logger.info(f"Response status for {account}: {response.status_code}")
+                
                 if response.status_code == 200:
                     user_id = response.json()['data']['id']
-                    
-                    time.sleep(WAIT_TIME)  # Wait between requests
+                    logger.info(f"Found user ID for {account}: {user_id}")
                     
                     tweets_response = self.twitter.get(
                         f"https://api.twitter.com/2/users/{user_id}/tweets",
@@ -116,17 +119,23 @@ class TwitterBot:
                     
                     if tweets_response.status_code == 200:
                         tweets = tweets_response.json().get('data', [])
+                        logger.info(f"Found {len(tweets)} tweets from {account}")
                         for tweet in tweets:
                             recent_tweets.append({
                                 'id': tweet['id'],
                                 'text': tweet['text'],
                                 'author': account
                             })
-                            
+                    else:
+                        logger.error(f"Failed to get tweets: {tweets_response.status_code}")
+                
+                time.sleep(WAIT_TIME)  # Wait between accounts
+                    
             except Exception as e:
                 logger.error(f"Error processing {account}: {e}")
                 continue
-                
+        
+        logger.info(f"Total tweets found: {len(recent_tweets)}")
         return recent_tweets
 
     def generate_quick_reply(self, tweet):
@@ -193,33 +202,40 @@ def main():
     
     try:
         bot = TwitterBot()
+        logger.info("Bot initialized successfully, starting main loop...")
         
-        while True:
+        while True:  # Infinite loop
             try:
                 logger.info("--- Starting new cycle ---")
                 
+                # Find new tweets
                 recent_tweets = bot.find_recent_tweets()
-                logger.info(f"Found {len(recent_tweets)} tweets")
+                logger.info(f"Processing {len(recent_tweets)} tweets")
                 
+                # Process each tweet
                 for tweet in recent_tweets:
                     if bot.should_engage(tweet):
                         reply = bot.generate_quick_reply(tweet)
                         if reply:
                             bot.post_reply(tweet['id'], reply)
-                            time.sleep(WAIT_TIME * 2)  # Double wait after posting
+                            logger.info(f"Successfully engaged with tweet from {tweet['author']}")
                 
+                # Check metrics
                 bot.check_growth_metrics()
                 
-                logger.info("Waiting before next cycle...")
-                time.sleep(WAIT_TIME * 5)  # 5 minute wait between cycles
+                # Wait before next cycle
+                logger.info("Waiting 60 seconds before next cycle...")
+                time.sleep(60)
                 
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
-                time.sleep(WAIT_TIME * 2)
+                logger.error(traceback.format_exc())
+                time.sleep(60)
                 continue
         
     except Exception as e:
         logger.error(f"Fatal error: {e}")
+        logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
