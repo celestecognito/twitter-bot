@@ -179,8 +179,8 @@ class TwitterBot:
         
         if response.status_code == 200:
             user_data = response.json()
-            self.username = str(user_data['id'])
-            print(f"✅ Connected as: @{user_data['screen_name']}")
+            self.username = user_data['screen_name']
+            print(f"✅ Connected as: @{self.username}")
         else:
             print(f"❌ Twitter API response: {response.status_code}")
             print(f"Response text: {response.text}")
@@ -196,6 +196,82 @@ class TwitterBot:
         self.current_news = []
         self.last_news_check = None
         self.LAST_REPLY_TIME = {}
+
+    def load_daily_stats(self):
+        """Load or initialize daily statistics"""
+        today = datetime.utcnow().strftime('%Y-%m-%d')
+        try:
+            if os.path.exists(self.daily_stats_file):
+                with open(self.daily_stats_file, 'r') as f:
+                    stats = json.load(f)
+                    if stats.get('date') == today:
+                        self.daily_stats = stats
+                        return
+        except Exception as e:
+            print(f"Error loading stats: {e}")
+
+        # Initialize new daily stats
+        self.daily_stats = {
+            'date': today,
+            'tweets': 0,
+            'replies': 0,
+            'followers': 0,
+            'following': 0,
+            'previous_followers': 0,
+            'engagement_rate': 0.0
+        }
+        self.save_daily_stats()
+
+    def save_daily_stats(self):
+        """Save daily statistics"""
+        try:
+            with open(self.daily_stats_file, 'w') as f:
+                json.dump(self.daily_stats, f)
+        except Exception as e:
+            print(f"Error saving stats: {e}")
+
+    def get_trending_topics(self):
+        """Gets current trending topics"""
+        try:
+            if (not self.last_trending_update or 
+                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
+                
+                response = self.twitter.get(
+                    "https://api.twitter.com/1.1/trends/place.json?id=1"
+                )
+                
+                if response.status_code == 200:
+                    trends = response.json()[0]['trends']
+                    self.trending_cache = [trend['name'] for trend in trends]
+                    self.last_trending_update = datetime.utcnow()
+                
+            return self.trending_cache
+            
+        except Exception as e:
+            print(f"Error getting trends: {e}")
+            return []
+
+    def get_latest_news(self):
+        """Gets latest news from sources"""
+        try:
+            if (not self.last_news_check or 
+                (datetime.utcnow() - self.last_news_check).total_seconds() >= 3600):
+                
+                self.current_news = []
+                for source in NEWS_SOURCES[:2]:  # Only check first 2 sources to avoid rate limits
+                    response = requests.get(source)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        headlines = soup.find_all(['h1', 'h2', 'h3'])[:5]
+                        self.current_news.extend([h.text.strip() for h in headlines])
+                
+                self.last_news_check = datetime.utcnow()
+            
+            return self.current_news
+            
+        except Exception as e:
+            print(f"Error getting news: {e}")
+            return []
 
     def should_engage(self, tweet):
         """Enhanced smart engagement decision with more flexible criteria"""
@@ -421,7 +497,7 @@ class TwitterBot:
         try:
             response = self.twitter.get(
                 "https://api.twitter.com/1.1/users/show.json",
-                params={"user_id": self.username}
+                params={"screen_name": self.username}
             )
             
             if response.status_code == 200:
