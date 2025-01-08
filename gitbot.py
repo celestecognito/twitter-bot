@@ -87,7 +87,6 @@ TECH_NEWS = [
 # Combine all target accounts
 TARGET_ACCOUNTS = (TECH_AI_LEADERS + CRYPTO_LEADERS + 
                   AI_COMPANIES + CRYPTO_PROJECTS + TECH_NEWS)
-
 # Topics of Interest
 AI_TOPICS = [
     "AGI timeline", "AI consciousness", "Quantum computing",
@@ -214,7 +213,8 @@ class TwitterBot:
         except Exception as e:
             print(f"❌ Initialization error: {e}")
             raise e
-                def load_daily_stats(self):
+
+    def load_daily_stats(self):
         """Load or initialize daily statistics"""
         print("Loading daily stats...")
         today = datetime.now(UTC).strftime('%Y-%m-%d')
@@ -252,7 +252,6 @@ class TwitterBot:
         except Exception as e:
             print(f"❌ Error saving stats: {e}")
 
-    # New function: Check growth metrics
     def check_growth_metrics(self):
         """Check and update growth metrics"""
         try:
@@ -271,7 +270,6 @@ class TwitterBot:
             print(f"Error checking metrics: {e}")
             return False
 
-    # New function: Reply to replies
     def reply_to_replies(self):
         """Reply to replies on our tweets"""
         try:
@@ -294,7 +292,6 @@ class TwitterBot:
             print(f"Error processing replies: {e}")
             return False
 
-    # New function: Retweet
     def retweet(self, tweet_id):
         """Retweet a tweet"""
         try:
