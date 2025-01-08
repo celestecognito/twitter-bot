@@ -4,7 +4,8 @@ import random
 import json
 import openai
 import os
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
+import datetime as dt
 import requests
 from bs4 import BeautifulSoup
 import pytz
