@@ -55,6 +55,7 @@ class TwitterBot:
             user_data = response.json()['data']
             self.user_id = user_data['id']
             self.username = user_data['username']
+            logger.info(f"Authenticated as @{self.username}")
         else:
             raise Exception(f"Authentication failed: {response.status_code}")
 
@@ -62,6 +63,7 @@ class TwitterBot:
         recent_tweets = []
         for account in TARGET_ACCOUNTS[:5]:
             try:
+                logger.info(f"Checking account: {account}")
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
@@ -80,7 +82,8 @@ class TwitterBot:
                                 'text': tweet['text'],
                                 'author': account
                             })
-                time.sleep(60)
+                            logger.info(f"Found tweet from {account}")
+                time.sleep(15)
                     
             except Exception as e:
                 logger.error(f"Error getting tweets from {account}: {e}")
@@ -118,6 +121,7 @@ class TwitterBot:
             )
             
             if response.status_code in [200, 201]:
+                logger.info("Successfully posted reply")
                 return response.json()['data']['id']
             return None
             
@@ -135,7 +139,7 @@ def main():
                 reply = bot.generate_quick_reply(tweet)
                 if reply:
                     bot.post_reply(tweet['id'], reply)
-                    time.sleep(60)
+                    time.sleep(15)
                     
     except Exception as e:
         logger.error(f"Error: {e}")
