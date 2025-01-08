@@ -22,6 +22,17 @@ for key in ['CONSUMER_KEY', 'CONSUMER_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SEC
     print(f"{key}: {'✅' if exists else '❌'}")
 print("==================\n")
 
+# Validate required credentials
+required_keys = ['CONSUMER_KEY', 'CONSUMER_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET', 'OPENAI_API_KEY']
+missing_keys = [key for key in required_keys if not os.environ.get(key)]
+
+if missing_keys:
+    print("❌ Error: Missing required environment variables:")
+    for key in missing_keys:
+        print(f"  - {key}")
+    print("\nPlease set these environment variables and try again.")
+    exit(1)
+
 print("=== Starting Enhanced Twitter Bot ===")
 
 # API credentials
@@ -41,8 +52,8 @@ LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
-CURRENT_YEAR = datetime.now(UTC).year
-CURRENT_DATE = datetime.now(UTC).strftime('%Y-%m-%d')
+CURRENT_YEAR = datetime.now(dt.timezone.utc).year
+CURRENT_DATE = datetime.now(dt.timezone.utc).strftime('%Y-%m-%d')
 TWEET_AGE_LIMIT = 5  # minutes
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
 
@@ -127,7 +138,7 @@ class TwitterBot:
             raise e
 
     def load_daily_stats(self):
-        today = datetime.now(UTC).strftime('%Y-%m-%d')
+        today = datetime.now(dt.timezone.utc).strftime('%Y-%m-%d')
         try:
             if os.path.exists(self.daily_stats_file):
                 with open(self.daily_stats_file, 'r') as f:
@@ -201,9 +212,9 @@ class TwitterBot:
                         created_at = datetime.strptime(
                             tweet['created_at'], 
                             '%Y-%m-%dT%H:%M:%S.%fZ'
-                        ).replace(tzinfo=UTC)
+                        ).replace(tzinfo=dt.timezone.utc)
                         
-                        age_minutes = (datetime.now(UTC) - created_at).total_seconds() / 60
+                        age_minutes = (datetime.now(dt.timezone.utc) - created_at).total_seconds() / 60
                         if age_minutes <= TWEET_AGE_LIMIT:
                             recent_tweets.append({
                                 'id': tweet['id'],
@@ -221,7 +232,7 @@ class TwitterBot:
         try:
             if tweet['id'] in LAST_REPLY_TIME:
                 last_reply = LAST_REPLY_TIME[tweet['id']]
-                minutes_since_reply = (datetime.now(UTC) - last_reply).total_seconds() / 60
+                minutes_since_reply = (datetime.now(dt.timezone.utc) - last_reply).total_seconds() / 60
                 if minutes_since_reply < MINIMUM_WAIT_BETWEEN_REPLIES:
                     return False
 
@@ -279,7 +290,7 @@ class TwitterBot:
             if response.status_code == 201:
                 self.daily_stats['replies'] += 1
                 self.save_daily_stats()
-                LAST_REPLY_TIME[tweet_id] = datetime.now(UTC)
+                LAST_REPLY_TIME[tweet_id] = datetime.now(dt.timezone.utc)
                 return True
             return False
         except Exception as e:
