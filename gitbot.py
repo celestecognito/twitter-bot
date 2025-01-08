@@ -165,22 +165,41 @@ Your style:
 12. Always be aware it's {CURRENT_DATE} and reference current events
 13. Never reference outdated information or past years as current"""
 class TwitterBot:
-    def __init__(self):
-        print("Initializing TwitterBot...")
-        self.twitter = OAuth1Session(
-            consumer_key,
-            client_secret=consumer_secret,
-            resource_owner_key=access_token,
-            resource_owner_secret=access_token_secret
-        )
-        self.username = "CelesteCognito"
-        self.daily_stats_file = "daily_stats.json"
-        self.trending_cache = {}
-        self.last_trending_update = None
-        self.last_news_check = None
-        self.current_news = []
-        self.load_daily_stats()
-        print("TwitterBot initialized")
+        def should_engage(self, tweet):
+        """Enhanced smart engagement decision with rate limiting"""
+        # Check two-hour reply limit
+        two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+        recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
+                           if time > two_hours_ago)
+        
+        if recent_replies >= REPLIES_PER_TWO_HOURS:
+            print("Two-hour reply limit reached")
+            return False
+
+        # Rest of your existing should_engage logic here
+        text_lower = tweet['text'].lower()
+        engagement_score = 0
+        
+        # Content relevance (0-5 points)
+        if any(topic.lower() in text_lower for topic in HOT_TOPICS):
+            engagement_score += 3
+            print(f"✅ Relevant topic found (+3)")
+        if any(trend.lower() in text_lower for trend in self.get_trending_topics()):
+            engagement_score += 2
+            print(f"✅ Trending topic found (+2)")
+            
+        # Author importance (0-3 points)
+        if tweet['author'] in TARGET_ACCOUNTS[:5]:
+            engagement_score += 3
+            print(f"✅ Top priority author (+3)")
+        elif tweet['author'] in TARGET_ACCOUNTS[5:15]:
+            engagement_score += 2
+            print(f"✅ High priority author (+2)")
+        elif tweet['author'] in TARGET_ACCOUNTS:
+            engagement_score += 1
+            print(f"✅ Target author (+1)")
+        
+        return engagement_score >= 8
 
     def load_daily_stats(self):
         """Load or initialize daily statistics"""
