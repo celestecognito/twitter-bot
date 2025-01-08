@@ -9,10 +9,17 @@ import requests
 from bs4 import BeautifulSoup
 import pytz
 import traceback
+import logging
 
-print("=== Starting Enhanced Twitter Bot ===")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-print("Loading credentials...")
+logger.info("=== Starting Enhanced Twitter Bot ===")
+
+logger.info("Loading credentials...")
 consumer_key = os.environ.get("CONSUMER_KEY")
 consumer_secret = os.environ.get("CONSUMER_SECRET")
 access_token = os.environ.get("ACCESS_TOKEN")
@@ -25,7 +32,7 @@ assert access_token, "Missing ACCESS_TOKEN"
 assert access_token_secret, "Missing ACCESS_TOKEN_SECRET"
 assert openai.api_key, "Missing OPENAI_API_KEY"
 
-print("✅ All credentials validated")
+logger.info("✅ All credentials validated")
 
 REPLIES_PER_TWO_HOURS = 10
 CONVERSATION_DEPTH_LIMIT = 5
@@ -158,25 +165,27 @@ Your style:
 
 class TwitterBot:
     def __init__(self):
-        print("Initializing Twitter bot...")
+        logger.info("Starting TwitterBot initialization...")
         try:
+            logger.info("Creating OAuth session...")
             self.twitter = OAuth1Session(
                 consumer_key,
                 client_secret=consumer_secret,
                 resource_owner_key=access_token,
                 resource_owner_secret=access_token_secret
             )
-            print("OAuth session created")
+            logger.info("OAuth session created successfully")
             
+            logger.info("Getting user info...")
             response = self.twitter.get(
                 "https://api.twitter.com/2/users/me",
                 params={"user.fields": "id,username,public_metrics"}
             )
-            print(f"Twitter API Response Status: {response.status_code}")
-            print(f"Twitter API Response: {response.text}")
+            logger.info(f"Twitter API Response Status: {response.status_code}")
+            logger.info(f"Twitter API Response: {response.text}")
             
             if response.status_code == 429:
-                print("Rate limit hit - waiting 30 seconds")
+                logger.warning("Rate limit hit - waiting 30 seconds")
                 time.sleep(30)
                 response = self.twitter.get(
                     "https://api.twitter.com/2/users/me",
@@ -187,7 +196,7 @@ class TwitterBot:
                 user_data = response.json()['data']
                 self.user_id = user_data['id']
                 self.username = user_data['username']
-                print(f"✅ Successfully authenticated as @{self.username}")
+                logger.info(f"✅ Successfully authenticated as @{self.username}")
                 
                 self.daily_stats_file = 'daily_stats.json'
                 self.daily_stats = {
@@ -211,12 +220,12 @@ class TwitterBot:
                 error_msg = f"Failed to get user info. Status: {response.status_code}"
                 if response.status_code == 401:
                     error_msg += "\nAuthentication failed - check your API keys"
-                print(f"❌ {error_msg}")
-                print(f"Response: {response.text}")
+                logger.error(f"❌ {error_msg}")
+                logger.error(f"Response: {response.text}")
                 raise Exception(error_msg)
                 
         except Exception as e:
-            print(f"❌ Initialization error: {str(e)}")
+            logger.error(f"❌ Initialization error: {str(e)}")
             traceback.print_exc()
             raise
 
@@ -230,7 +239,7 @@ class TwitterBot:
                         self.daily_stats = stats
                         return
         except Exception as e:
-            print(f"Error loading stats: {e}")
+            logger.error(f"Error loading stats: {e}")
 
         self.daily_stats = {
             'date': today,
@@ -248,7 +257,7 @@ class TwitterBot:
             with open(self.daily_stats_file, 'w') as f:
                 json.dump(self.daily_stats, f)
         except Exception as e:
-            print(f"Error saving stats: {e}")
+            logger.error(f"Error saving stats: {e}")
 
     def get_trending_topics(self):
         try:
@@ -273,7 +282,7 @@ class TwitterBot:
                     
             return self.trending_cache
         except Exception as e:
-            print(f"Error getting trends: {e}")
+            logger.error(f"Error getting trends: {e}")
             return {}
 
     def get_latest_news(self):
@@ -289,7 +298,7 @@ class TwitterBot:
                         headlines = soup.find_all(['h1', 'h2'])[:5]
                         self.current_news.extend([h.text.strip() for h in headlines])
                 except Exception as e:
-                    print(f"Error fetching news from {source}: {e}")
+                    logger.error(f"Error fetching news from {source}: {e}")
             
             self.last_news_check = datetime.now(timezone.utc)
         
@@ -302,7 +311,7 @@ class TwitterBot:
                                if time > two_hours_ago)
             
             if recent_replies >= REPLIES_PER_TWO_HOURS:
-                print("Two-hour reply limit reached")
+                logger.info("Two-hour reply limit reached")
                 return False
 
             text_lower = tweet['text'].lower()
@@ -319,28 +328,11 @@ class TwitterBot:
             return random.random() < 0.8
             
         except Exception as e:
-            print(f"Error in should_engage: {e}")
+            logger.error(f"Error in should_engage: {e}")
             return False
 
-    def analyze_engagement(self, tweet_text):
-        score = 0
-        text_lower = tweet_text.lower()
-        
-        if '?' in tweet_text:
-            score += 2
-        if any(hook.lower() in text_lower for hook in ENGAGEMENT_PATTERNS['hooks']):
-            score += 3
-        if any(word in text_lower for word in ['exclusive', 'breaking', 'leaked']):
-            score += 2
-        if len(tweet_text.split()) < 15:
-            score += 1
-        if any(topic.lower() in text_lower for topic in HOT_TOPICS):
-            score += 2
-            
-        return score > 4
-
     def find_recent_tweets(self):
-        print("\nSearching for recent tweets...")
+        logger.info("Searching for recent tweets...")
         recent_tweets = []
         
         for account in TARGET_ACCOUNTS[:5]:
@@ -350,7 +342,6 @@ class TwitterBot:
                 )
                 
                 if response.status_code == 429:
-                    print(f"Rate limit hit for {account} - waiting 30 seconds")
                     time.sleep(30)
                     continue
                     
@@ -366,7 +357,6 @@ class TwitterBot:
                     )
                     
                     if tweets_response.status_code == 429:
-                        print(f"Rate limit hit for tweets of {account} - waiting 30 seconds")
                         time.sleep(30)
                         continue
                         
@@ -389,10 +379,10 @@ class TwitterBot:
                                     'age_minutes': age_minutes,
                                     'metrics': tweet.get('public_metrics', {})
                                 })
-                                print(f"Found {age_minutes:.1f} minute old tweet from {account}")
+                                logger.info(f"Found {age_minutes:.1f} minute old tweet from {account}")
             
             except Exception as e:
-                print(f"Error processing {account}: {e}")
+                logger.error(f"Error processing {account}: {e}")
                 traceback.print_exc()
                 continue
         
@@ -438,7 +428,7 @@ class TwitterBot:
             return reply
             
         except Exception as e:
-            print(f"Error generating reply: {e}")
+            logger.error(f"Error generating reply: {e}")
             traceback.print_exc()
             return None
 
@@ -455,22 +445,22 @@ class TwitterBot:
             )
             
             if response.status_code == 429:
-                print("Rate limit hit while posting reply - waiting 30 seconds")
+                logger.warning("Rate limit hit while posting reply - waiting 30 seconds")
                 time.sleep(30)
                 return None
                 
             if response.status_code in [200, 201]:
-                print("✅ Reply posted successfully!")
+                logger.info("✅ Reply posted successfully!")
                 self.daily_stats['replies'] += 1
                 self.LAST_REPLY_TIME[tweet_id] = datetime.now(timezone.utc)
                 return response.json()['data']['id']
             else:
-                print(f"❌ Reply failed: {response.status_code}")
-                print(f"Response: {response.text}")
+                logger.error(f"❌ Reply failed: {response.status_code}")
+                logger.error(f"Response: {response.text}")
                 return None
                 
         except Exception as e:
-            print(f"❌ Error posting reply: {e}")
+            logger.error(f"❌ Error posting reply: {e}")
             traceback.print_exc()
             return None
 
@@ -482,20 +472,20 @@ class TwitterBot:
             )
             
             if response.status_code == 429:
-                print("Rate limit hit while retweeting - waiting 30 seconds")
+                logger.warning("Rate limit hit while retweeting - waiting 30 seconds")
                 time.sleep(30)
                 return False
                 
             if response.status_code == 200:
-                print("✅ Retweeted successfully!")
+                logger.info("✅ Retweeted successfully!")
                 return True
             else:
-                print(f"❌ Retweet failed: {response.status_code}")
-                print(f"Response: {response.text}")
+                logger.error(f"❌ Retweet failed: {response.status_code}")
+                logger.error(f"Response: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error retweeting: {e}")
+            logger.error(f"❌ Error retweeting: {e}")
             traceback.print_exc()
             return False
 
@@ -510,7 +500,7 @@ class TwitterBot:
             )
             
             if response.status_code == 429:
-                print("Rate limit hit while getting replies - waiting 30 seconds")
+                logger.warning("Rate limit hit while getting replies - waiting 30 seconds")
                 time.sleep(30)
                 return
                 
@@ -526,11 +516,11 @@ class TwitterBot:
                             self.post_reply(reply['id'], engagement_reply)
                             time.sleep(random.randint(30, 60))
             else:
-                print(f"Failed to get replies. Status: {response.status_code}")
-                print(f"Response: {response.text}")
+                logger.error(f"Failed to get replies. Status: {response.status_code}")
+                logger.error(f"Response: {response.text}")
             
         except Exception as e:
-            print(f"Error processing replies: {e}")
+            logger.error(f"Error processing replies: {e}")
             traceback.print_exc()
 
     def check_growth_metrics(self):
@@ -541,7 +531,7 @@ class TwitterBot:
             )
             
             if response.status_code == 429:
-                print("Rate limit hit while checking metrics - waiting 30 seconds")
+                logger.warning("Rate limit hit while checking metrics - waiting 30 seconds")
                 time.sleep(30)
                 return
                 
@@ -556,7 +546,7 @@ class TwitterBot:
                               self.daily_stats.get('previous_followers', 0))
                 
                 if daily_growth < FOLLOWER_GOALS['daily']:
-                    print(f"⚠️ Daily growth below target: {daily_growth}/{FOLLOWER_GOALS['daily']}")
+                    logger.warning(f"⚠️ Daily growth below target: {daily_growth}/{FOLLOWER_GOALS['daily']}")
                 
                 if self.daily_stats['tweets'] > 0:
                     self.daily_stats['engagement_rate'] = (
@@ -567,27 +557,29 @@ class TwitterBot:
                 self.save_daily_stats()
                 
             else:
-                print(f"Failed to check metrics. Status: {response.status_code}")
-                print(f"Response: {response.text}")
+                logger.error(f"Failed to check metrics. Status: {response.status_code}")
+                logger.error(f"Response: {response.text}")
                 
         except Exception as e:
-            print(f"Error checking metrics: {e}")
+            logger.error(f"Error checking metrics: {e}")
             traceback.print_exc()
 
 def main():
-    print("\n=== Starting Bot ===\n")
+    logger.info("=== Starting Bot ===")
     
     try:
+        logger.info("Initializing TwitterBot...")
         bot = TwitterBot()
-        print("Bot initialized successfully")
+        logger.info("Bot initialized successfully")
         
         while True:
             try:
-                print("\n--- Starting new cycle ---")
+                logger.info("--- Starting new cycle ---")
+                logger.info("Checking growth metrics...")
                 bot.check_growth_metrics()
                 
                 recent_tweets = bot.find_recent_tweets()
-                print(f"Processing {len(recent_tweets)} tweets")
+                logger.info(f"Processing {len(recent_tweets)} tweets")
                 
                 for tweet in recent_tweets:
                     if bot.should_engage(tweet):
@@ -596,21 +588,21 @@ def main():
                         if reply:
                             reply_id = bot.post_reply(tweet['id'], reply)
                             if reply_id:
-                                print("Tweet processed successfully")
+                                logger.info("Tweet processed successfully")
                                 time.sleep(random.randint(30, 60))
                                 bot.reply_to_replies(reply_id)
                 
-                print("\nWaiting before next check...")
+                logger.info("Waiting before next check...")
                 time.sleep(random.randint(60, 180))
                 
             except Exception as e:
-                print(f"Error in main loop: {e}")
+                logger.error(f"Error in main loop: {e}")
                 traceback.print_exc()
                 time.sleep(60)
                 continue
         
     except Exception as e:
-        print(f"\n❌ Fatal error: {e}")
+        logger.error(f"\n❌ Fatal error: {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":
