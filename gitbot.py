@@ -87,6 +87,7 @@ TECH_NEWS = [
 # Combine all target accounts
 TARGET_ACCOUNTS = (TECH_AI_LEADERS + CRYPTO_LEADERS + 
                   AI_COMPANIES + CRYPTO_PROJECTS + TECH_NEWS)
+
 # Topics of Interest
 AI_TOPICS = [
     "AGI timeline", "AI consciousness", "Quantum computing",
@@ -557,5 +558,5 @@ def main():
         print(f"\n❌ Fatal error: {e}")
         raise e
 
-    if __name__ == "__main__":
+if __name__ == "__main__":
     main()
