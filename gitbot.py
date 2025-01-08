@@ -12,7 +12,6 @@ from requests_oauthlib import OAuth1Session
 
 print("=== Starting Enhanced Twitter Bot ===")
 
-# API credentials validation
 print("Loading and validating credentials...")
 consumer_key = os.environ.get("CONSUMER_KEY")
 consumer_secret = os.environ.get("CONSUMER_SECRET")
@@ -20,7 +19,6 @@ access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Validate credentials
 assert consumer_key, "Missing CONSUMER_KEY"
 assert consumer_secret, "Missing CONSUMER_SECRET"
 assert access_token, "Missing ACCESS_TOKEN"
@@ -29,7 +27,6 @@ assert openai.api_key, "Missing OPENAI_API_KEY"
 
 print("✅ All credentials validated")
 
-# Enhanced Activity Limits
 REPLIES_PER_TWO_HOURS = 100
 MINIMUM_WAIT_BETWEEN_REPLIES = 0
 REPLY_LIMIT = 500
@@ -37,7 +34,6 @@ TWEET_AGE_LIMIT = 120
 LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
-# Growth and Engagement Goals
 FOLLOWER_GOALS = {
     'daily': 100,
     'weekly': 1000,
@@ -50,11 +46,9 @@ ENGAGEMENT_GOALS = {
     'replies_per_tweet': 10
 }
 
-# Time Configuration
 CURRENT_YEAR = datetime.utcnow().year
 CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')
 
-# Target Accounts by Category
 TECH_AI_LEADERS = [
     "elonmusk", "sama", "naval", "lexfridman", 
     "karpathy", "ylecun", "demishassabis"
@@ -80,11 +74,9 @@ TECH_NEWS = [
     "WSJ", "Bloomberg", "Reuters"
 ]
 
-# Combine all target accounts
 TARGET_ACCOUNTS = (TECH_AI_LEADERS + CRYPTO_LEADERS + 
                   AI_COMPANIES + CRYPTO_PROJECTS + TECH_NEWS)
 
-# Topics of Interest
 AI_TOPICS = [
     "AGI timeline", "AI consciousness", "Quantum computing",
     "Neural networks", "Machine learning", "AI safety",
@@ -101,7 +93,6 @@ CRYPTO_TOPICS = [
 
 HOT_TOPICS = AI_TOPICS + CRYPTO_TOPICS
 
-# Hashtags for Visibility
 AI_HASHTAGS = [
     "#AI", "#AGI", "#ArtificialIntelligence", 
     "#MachineLearning", "#DeepLearning", "#Tech",
@@ -115,7 +106,6 @@ CRYPTO_HASHTAGS = [
 
 VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
 
-# Bot Persona Configuration
 BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
 Current date: {CURRENT_DATE}
 Your style:
@@ -130,6 +120,14 @@ Your style:
 9. Balance between AI and crypto topics
 10. Sound confident but mysterious"""
 
+def handle_rate_limit(response, retry_delay=60):
+    if response.status_code == 429:
+        wait_time = int(response.headers.get('x-rate-limit-reset', retry_delay))
+        print(f"Rate limit hit, waiting {wait_time} seconds...")
+        time.sleep(wait_time)
+        return True
+    return False
+
 class TwitterBot:
     def __init__(self):
         print("Initializing Twitter bot...")
@@ -141,95 +139,119 @@ class TwitterBot:
         )
         print("OAuth session created")
         
-        try:
-            response = self.twitter.get(
-                "https://api.twitter.com/2/users/me"
-            )
-            response.raise_for_status()
-            user_data = response.json()
-            
-            if 'data' in user_data:
-                self.user_id = user_data['data']['id']
-                self.username = user_data['data']['username']
-                print(f"✅ Connected as: @{self.username} (ID: {self.user_id})")
+        max_retries = 3
+        retry_delay = 60
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.twitter.get("https://api.twitter.com/2/users/me")
                 
-                limits = self.twitter.get("https://api.twitter.com/1.1/application/rate_limit_status.json")
-                print(f"Rate limits: {limits.status_code}")
+                if handle_rate_limit(response):
+                    continue
+                    
+                response.raise_for_status()
+                user_data = response.json()
                 
-                self.daily_stats = {
-                    'date': datetime.utcnow().strftime('%Y-%m-%d'),
-                    'tweets': 0,
-                    'replies': 0,
-                    'followers': 0,
-                    'following': 0,
-                    'previous_followers': 0,
-                    'engagement_rate': 0.0
-                }
-                print("Stats initialized in memory")
-            else:
-                raise Exception("Invalid user data structure")
-                
-        except Exception as e:
-            print(f"❌ Connection failed: {str(e)}")
-            raise
+                if 'data' in user_data:
+                    self.user_id = user_data['data']['id']
+                    self.username = user_data['data']['username']
+                    print(f"✅ Connected as: @{self.username} (ID: {self.user_id})")
+                    
+                    self.daily_stats = {
+                        'date': datetime.utcnow().strftime('%Y-%m-%d'),
+                        'tweets': 0,
+                        'replies': 0,
+                        'followers': 0,
+                        'following': 0,
+                        'previous_followers': 0,
+                        'engagement_rate': 0.0
+                    }
+                    print("Stats initialized in memory")
+                    return
+                else:
+                    raise Exception("Invalid user data structure")
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"❌ Connection failed after {max_retries} attempts: {str(e)}")
+                    raise
 
     def find_recent_tweets(self):
         print("\nSearching for recent tweets...")
         recent_tweets = []
+        max_retries = 3
+        retry_delay = 60
         
         try:
             user_ids = []
             for account in TARGET_ACCOUNTS[:5]:
-                try:
-                    response = self.twitter.get(
-                        f"https://api.twitter.com/2/users/by/username/{account}"
-                    )
-                    if response.status_code == 200:
-                        user_data = response.json()
-                        if 'data' in user_data:
-                            user_ids.append(user_data['data']['id'])
-                except Exception as e:
-                    print(f"Error getting user ID for {account}: {e}")
-                    continue
+                for attempt in range(max_retries):
+                    try:
+                        response = self.twitter.get(
+                            f"https://api.twitter.com/2/users/by/username/{account}"
+                        )
+                        
+                        if handle_rate_limit(response):
+                            continue
+                            
+                        if response.status_code == 200:
+                            user_data = response.json()
+                            if 'data' in user_data:
+                                user_ids.append(user_data['data']['id'])
+                                break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            continue
+                        print(f"Error getting user ID for {account}: {e}")
             
             for user_id in user_ids:
-                try:
-                    response = self.twitter.get(
-                        f"https://api.twitter.com/2/users/{user_id}/tweets",
-                        params={
-                            "max_results": 10,
-                            "tweet.fields": "created_at,public_metrics"
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        tweets_data = response.json()
-                        if 'data' in tweets_data:
-                            for tweet in tweets_data['data']:
-                                created_at = datetime.strptime(
-                                    tweet['created_at'],
-                                    '%Y-%m-%dT%H:%M:%S.%fZ'
-                                )
-                                age_minutes = (
-                                    datetime.utcnow() - created_at
-                                ).total_seconds() / 60
-                                
-                                if age_minutes <= TWEET_AGE_LIMIT:
-                                    metrics = tweet.get('public_metrics', {})
-                                    recent_tweets.append({
-                                        'id': tweet['id'],
-                                        'text': tweet['text'],
-                                        'author': user_id,
-                                        'age_minutes': age_minutes,
-                                        'likes': metrics.get('like_count', 0),
-                                        'retweets': metrics.get('retweet_count', 0)
-                                    })
-                                    print(f"Added tweet from user {user_id}")
+                for attempt in range(max_retries):
+                    try:
+                        response = self.twitter.get(
+                            f"https://api.twitter.com/2/users/{user_id}/tweets",
+                            params={
+                                "max_results": 10,
+                                "tweet.fields": "created_at,public_metrics"
+                            }
+                        )
+                        
+                        if handle_rate_limit(response):
+                            continue
+                            
+                        if response.status_code == 200:
+                            tweets_data = response.json()
+                            if 'data' in tweets_data:
+                                for tweet in tweets_data['data']:
+                                    created_at = datetime.strptime(
+                                        tweet['created_at'],
+                                        '%Y-%m-%dT%H:%M:%S.%fZ'
+                                    )
+                                    age_minutes = (
+                                        datetime.utcnow() - created_at
+                                    ).total_seconds() / 60
                                     
-                except Exception as e:
-                    print(f"Error getting tweets for user {user_id}: {e}")
-                    continue
-                    
+                                    if age_minutes <= TWEET_AGE_LIMIT:
+                                        metrics = tweet.get('public_metrics', {})
+                                        recent_tweets.append({
+                                            'id': tweet['id'],
+                                            'text': tweet['text'],
+                                            'author': user_id,
+                                            'age_minutes': age_minutes,
+                                            'likes': metrics.get('like_count', 0),
+                                            'retweets': metrics.get('retweet_count', 0)
+                                        })
+                                        print(f"Added tweet from user {user_id}")
+                                break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            continue
+                        print(f"Error getting tweets for user {user_id}: {e}")
+                        
             print(f"Found {len(recent_tweets)} suitable tweets")
             
         except Exception as e:
@@ -265,90 +287,139 @@ class TwitterBot:
     def generate_quick_reply(self, tweet):
         try:
             print(f"\nGenerating reply to: {tweet['text'][:50]}...")
+            max_retries = 3
+            retry_delay = 30
             
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": BOT_PERSONA},
-                    {"role": "user", "content": f"Create an engaging reply to: '{tweet['text']}' by {tweet['author']}"}
-                ],
-                max_tokens=100,
-                temperature=0.9
-            )
-            
-            reply = response.choices[0].message['content'].strip()
-            print(f"Generated base reply: {reply[:50]}...")
-            
-            if random.random() < 0.3:
-                hashtags = random.sample(VIRAL_HASHTAGS, 2)
-                reply = f"{reply} {' '.join(hashtags)}"
-                print("Added hashtags")
-                
-            return reply
-            
+            for attempt in range(max_retries):
+                try:
+                    response = openai.ChatCompletion.create(
+                        model="gpt-4",
+                        messages=[
+                            {"role": "system", "content": BOT_PERSONA},
+                            {"role": "user", "content": f"Create an engaging reply to: '{tweet['text']}' by {tweet['author']}"}
+                        ],
+                        max_tokens=100,
+                        temperature=0.9
+                    )
+                    
+                    reply = response.choices[0].message['content'].strip()
+                    print(f"Generated base reply: {reply[:50]}...")
+                    
+                    if random.random() < 0.3:
+                        hashtags = random.sample(VIRAL_HASHTAGS, 2)
+                        reply = f"{reply} {' '.join(hashtags)}"
+                        print("Added hashtags")
+                        
+                    return reply
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        print(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                    else:
+                        print(f"Error generating reply: {e}")
+                        return None
+                        
         except Exception as e:
-            print(f"Error generating reply: {e}")
+            print(f"Error in generate_quick_reply: {e}")
             return None
 
     def post_reply(self, tweet_id, reply_text):
         try:
             print(f"\nPosting reply: {reply_text[:50]}...")
+            max_retries = 3
+            retry_delay = 60
             
-            response = self.twitter.post(
-                "https://api.twitter.com/2/tweets",
-                json={
-                    "text": reply_text,
-                    "reply": {
-                        "in_reply_to_tweet_id": tweet_id
-                    }
-                }
-            )
-            
-            print(f"Response: {response.status_code}, Content: {response.text}")
-            
-            if response.status_code in [200, 201]:
-                print("✅ Reply posted successfully!")
-                self.daily_stats['replies'] += 1
-                return response.json()['data']['id']
-            else:
-                print(f"❌ Reply failed: {response.status_code}")
-                return None
-                
+            for attempt in range(max_retries):
+                try:
+                    response = self.twitter.post(
+                        "https://api.twitter.com/2/tweets",
+                        json={
+                            "text": reply_text,
+                            "reply": {
+                                "in_reply_to_tweet_id": tweet_id
+                            }
+                        }
+                    )
+                    
+                    if handle_rate_limit(response):
+                        continue
+                        
+                    print(f"Response: {response.status_code}, Content: {response.text}")
+                    
+                    if response.status_code in [200, 201]:
+                        print("✅ Reply posted successfully!")
+                        self.daily_stats['replies'] += 1
+                        return response.json()['data']['id']
+                    elif attempt < max_retries - 1:
+                        print(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                    else:
+                        print(f"❌ Reply failed: {response.status_code}")
+                        return None
+                        
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    print(f"❌ Error posting reply: {e}")
+                    traceback.print_exc()
+                    return None
+                    
         except Exception as e:
-            print(f"❌ Error posting reply: {e}")
+            print(f"❌ Error in post_reply: {e}")
             traceback.print_exc()
             return None
 
     def check_growth_metrics(self):
         try:
             print("\nChecking growth metrics...")
+            max_retries = 3
+            retry_delay = 60
             
-            response = self.twitter.get(
-                f"https://api.twitter.com/2/users/{self.user_id}",
-                params={"user.fields": "public_metrics"}
-            )
-            
-            if response.status_code == 200:
-                user_data = response.json()['data']
-                metrics = user_data.get('public_metrics', {})
-                
-                self.daily_stats['followers'] = metrics.get('followers_count', 0)
-                self.daily_stats['following'] = metrics.get('following_count', 0)
-                
-                daily_growth = (self.daily_stats['followers'] - 
-                              self.daily_stats['previous_followers'])
-                
-                if self.daily_stats['tweets'] > 0:
-                    self.daily_stats['engagement_rate'] = (
-                        metrics.get('tweet_count', 0) / 
-                        self.daily_stats['tweets']
+            for attempt in range(max_retries):
+                try:
+                    response = self.twitter.get(
+                        f"https://api.twitter.com/2/users/{self.user_id}",
+                        params={"user.fields": "public_metrics"}
                     )
-                
-                print(f"📊 Daily Growth: {daily_growth} followers")
-                print(f"📈 Engagement Rate: {self.daily_stats['engagement_rate']:.2f}")
-                
+                    
+                    if handle_rate_limit(response):
+                        continue
+                        
+                    if response.status_code == 200:
+                        user_data = response.json()['data']
+                        metrics = user_data.get('public_metrics', {})
+                        
+                        self.daily_stats['followers'] = metrics.get('followers_count', 0)
+                        self.daily_stats['following'] = metrics.get('following_count', 0)
+                        
+                        daily_growth = (self.daily_stats['followers'] - 
+                                      self.daily_stats['previous_followers'])
+                        
+                        if self.daily_stats['tweets'] > 0:
+                            self.daily_stats['engagement_rate'] = (
+                                metrics.get('tweet_count', 0) / 
+                                self.daily_stats['tweets']
+                            )
+                        
+                        print(f"📊 Daily Growth: {daily_growth} followers")
+                        print(f"📈 Engagement Rate: {self.daily_stats['engagement_rate']:.2f}")
+                        break
+                        
+                    elif attempt < max_retries - 1:
+                        print(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    print(f"Error checking metrics: {e}")
+                    traceback.print_exc()
+                    
         except Exception as e:
-            print(f"Error checking metrics: {e}")
+            print(f"Error in check_growth_metrics: {e}")
             traceback.print_exc()
 
 def main():
