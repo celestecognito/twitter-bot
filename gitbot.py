@@ -30,7 +30,6 @@ assert openai.api_key, "Missing OPENAI_API_KEY"
 print("✅ All credentials validated")
 
 # Rest of configurations remain the same...
-[Previous configurations remain unchanged]
 
 class TwitterBot:
     def __init__(self):
