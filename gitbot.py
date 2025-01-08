@@ -34,15 +34,29 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 # Enhanced Activity Limits
 REPLIES_PER_TWO_HOURS = 10
 CONVERSATION_DEPTH_LIMIT = 5
-MINIMUM_WAIT_BETWEEN_REPLIES = 1  # 1 minute between replies
+MINIMUM_WAIT_BETWEEN_REPLIES = 3
+REPLY_LIMIT = 50  # Maximum daily replies
 LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
 CURRENT_YEAR = datetime.now().year
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
-TWEET_AGE_LIMIT = 10  # minutes
+TWEET_AGE_LIMIT = 5  # minutes
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
+
+# Growth and Engagement Goals
+FOLLOWER_GOALS = {
+    'daily': 100,
+    'weekly': 1000,
+    'monthly': 5000
+}
+
+ENGAGEMENT_GOALS = {
+    'likes_per_tweet': 50,
+    'retweets_per_tweet': 20,
+    'replies_per_tweet': 10
+}
 
 # Target Accounts by Category
 TECH_AI_LEADERS = [
@@ -105,6 +119,42 @@ CRYPTO_HASHTAGS = [
 ]
 
 VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
+# Engagement Templates
+VIRAL_TEMPLATES = [
+    "BREAKING: My sources indicate {prediction} 🤖",
+    "The truth about {topic} that no one is talking about 🤫",
+    "Just learned from insider sources: {insight} 👀",
+    "LEAKED: {information} 🔥",
+    "Why {common_belief} is wrong, and what's really happening 🧵",
+    "🚨 ALERT: {urgent_news}",
+    "Inside scoop on {topic} 💎",
+    "What they're not telling you about {topic} 🔓"
+]
+
+ENGAGEMENT_PATTERNS = {
+    'questions': [
+        'What if', 'Have you considered', 'Why do you think',
+        'How will this affect', 'When do you expect'
+    ],
+    'hooks': [
+        'LEAKED:', 'Inside sources confirm:', 'My AI analysis shows:',
+        'Breaking update:', 'Exclusive insight:'
+    ],
+    'engagement': [
+        'Agree?', 'Thoughts?', "What's your take?",
+        'Your view?', 'Predictions?'
+    ]
+}
+
+# News Sources for Research
+NEWS_SOURCES = [
+    "https://cointelegraph.com/",
+    "https://www.theverge.com/ai-artificial-intelligence",
+    "https://techcrunch.com/artificial-intelligence/",
+    "https://www.coindesk.com/",
+    "https://www.wired.com/tag/artificial-intelligence/",
+    "https://venturebeat.com/category/ai/"
+]
 
 # Bot Persona Configuration
 BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
@@ -123,6 +173,7 @@ Your style:
 11. IMPORTANT: Never use quotes (\") in your responses and never start responses with quotes
 12. Always be aware it's {CURRENT_DATE} and reference current events
 13. Never reference outdated information or past years as current"""
+
 class TwitterBot:
     def __init__(self):
         """Initialize the Twitter bot"""
@@ -163,19 +214,58 @@ class TwitterBot:
             print(f"❌ Initialization error: {e}")
             raise e
 
+    def load_daily_stats(self):
+        """Load or initialize daily statistics"""
+        print("Loading daily stats...")
+        today = datetime.utcnow().strftime('%Y-%m-%d')
+        try:
+            if os.path.exists(self.daily_stats_file):
+                with open(self.daily_stats_file, 'r') as f:
+                    stats = json.load(f)
+                    if stats.get('date') == today:
+                        self.daily_stats = stats
+                        print("✅ Loaded existing stats")
+                        return
+        except Exception as e:
+            print(f"Error loading stats: {e}")
+
+        # Initialize new daily stats
+        print("Initializing new daily stats")
+        self.daily_stats = {
+            'date': today,
+            'tweets': 0,
+            'replies': 0,
+            'followers': 0,
+            'following': 0,
+            'previous_followers': 0,
+            'engagement_rate': 0.0
+        }
+        self.save_daily_stats()
+        print("✅ New stats initialized")
+
+    def save_daily_stats(self):
+        """Save daily statistics"""
+        try:
+            with open(self.daily_stats_file, 'w') as f:
+                json.dump(self.daily_stats, f)
+            print("✅ Stats saved successfully")
+        except Exception as e:
+            print(f"❌ Error saving stats: {e}")
+
     def should_engage(self, tweet):
-        """Simplified engagement decision"""
-        # Check rate limiting
+        """Enhanced smart engagement decision with rate limiting"""
+        # Check two-hour reply limit
         two_hours_ago = datetime.utcnow() - timedelta(hours=2)
         recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
                            if time > two_hours_ago)
         
         if recent_replies >= REPLIES_PER_TWO_HOURS:
-            print(f"Two-hour reply limit reached ({recent_replies}/10)")
+            print("Two-hour reply limit reached")
             return False
 
         # Check if we replied to this tweet already
         if tweet['id'] in self.LAST_REPLY_TIME:
+            print("Already replied to this tweet")
             return False
 
         # Check if tweet is from a priority account
@@ -184,6 +274,49 @@ class TwitterBot:
             return True
             
         return False
+
+    def get_trending_topics(self):
+        """Gets current trending topics"""
+        try:
+            if (not self.last_trending_update or 
+                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
+                
+                response = self.twitter.get(
+                    "https://api.twitter.com/2/trends/place?id=1"
+                )
+                if response.status_code == 200:
+                    trends = response.json()
+                    self.trending_cache = {
+                        trend['name']: trend['tweet_volume']
+                        for trend in trends[0]['trends']
+                        if trend['tweet_volume']
+                    }
+                    self.last_trending_update = datetime.utcnow()
+                    
+            return self.trending_cache
+        except Exception as e:
+            print(f"Error getting trends: {e}")
+            return {}
+
+    def get_latest_news(self):
+        """Gets latest AI and crypto news"""
+        if (not self.last_news_check or 
+            (datetime.utcnow() - self.last_news_check).total_seconds() >= 3600):
+            
+            self.current_news = []
+            for source in NEWS_SOURCES:
+                try:
+                    response = requests.get(source, timeout=10)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        headlines = soup.find_all(['h1', 'h2'])[:5]
+                        self.current_news.extend([h.text.strip() for h in headlines])
+                except Exception as e:
+                    print(f"Error fetching news from {source}: {e}")
+            
+            self.last_news_check = datetime.utcnow()
+        
+        return self.current_news
 
     def find_recent_tweets(self):
         """Finds very recent tweets from target accounts"""
@@ -247,13 +380,34 @@ class TwitterBot:
     def generate_quick_reply(self, tweet):
         """Enhanced quick reply generation"""
         try:
+            # Get trending topics and news
+            trends = self.get_trending_topics()
+            latest_news = self.get_latest_news()
+            
+            relevant_trends = [
+                trend for trend in trends
+                if any(topic.lower() in trend.lower() for topic in HOT_TOPICS)
+            ]
+            
+            # Add context to prompt
+            context = f"\nCurrent date: {CURRENT_DATE}"
+            if relevant_trends:
+                context += f"\nRelevant trending topics: {', '.join(relevant_trends[:3])}"
+            if latest_news:
+                context += f"\nLatest headlines: {'; '.join(latest_news[:2])}"
+            
+            # Add engagement patterns
+            engagement_suffix = random.choice(ENGAGEMENT_PATTERNS['engagement'])
+            
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": BOT_PERSONA},
+                    {"role": "system", "content": BOT_PERSONA + context},
                     {"role": "user", "content": 
                      f"Create an engaging reply to: '{tweet['text']}' by {tweet['author']}. "
-                     f"Make it viral and impactful. Keep it short and natural."}
+                     f"Make it viral and relate to trends if relevant. "
+                     f"End with '{engagement_suffix}' if appropriate. "
+                     f"DO NOT use quotes and keep it short and impactful."}
                 ],
                 max_tokens=60,
                 temperature=0.9
@@ -278,7 +432,11 @@ class TwitterBot:
             return None
 
     def post_reply(self, tweet_id, reply_text):
-        """Posts a reply to a tweet"""
+        """Posts a reply to a tweet with limit checking"""
+        if self.daily_stats['replies'] >= REPLY_LIMIT:
+            print("⚠️ Daily reply limit reached")
+            return False
+
         print(f"\nPosting reply: {reply_text}")
         try:
             response = self.twitter.post(
@@ -290,6 +448,8 @@ class TwitterBot:
             )
             if response.status_code == 201:
                 print("✅ Reply posted successfully!")
+                self.daily_stats['replies'] += 1
+                self.save_daily_stats()
                 self.LAST_REPLY_TIME[tweet_id] = datetime.utcnow()
                 return response.json()['data']['id']
             else:
@@ -305,8 +465,10 @@ class TwitterBot:
         try:
             reply = self.generate_quick_reply(tweet)
             if reply:
-                self.post_reply(tweet['id'], reply)
-                time.sleep(MINIMUM_WAIT_BETWEEN_REPLIES * 60)
+                reply_id = self.post_reply(tweet['id'], reply)
+                if reply_id:
+                    print(f"✅ Successfully processed tweet from {tweet['author']}")
+                    time.sleep(MINIMUM_WAIT_BETWEEN_REPLIES * 60)
         except Exception as e:
             print(f"Error processing tweet: {e}")
 
