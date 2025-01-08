@@ -4,7 +4,7 @@ import random
 import json
 import openai
 import os
-from datetime import datetime, timedelta, UTC  # הוספנו UTC
+from datetime import datetime, timedelta, UTC
 import requests
 from bs4 import BeautifulSoup
 import pytz
@@ -119,6 +119,7 @@ CRYPTO_HASHTAGS = [
 ]
 
 VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
+
 # Engagement Templates
 VIRAL_TEMPLATES = [
     "BREAKING: My sources indicate {prediction} 🤖",
@@ -213,8 +214,7 @@ class TwitterBot:
         except Exception as e:
             print(f"❌ Initialization error: {e}")
             raise e
-
-    def load_daily_stats(self):
+                def load_daily_stats(self):
         """Load or initialize daily statistics"""
         print("Loading daily stats...")
         today = datetime.now(UTC).strftime('%Y-%m-%d')
@@ -251,6 +251,61 @@ class TwitterBot:
             print("✅ Stats saved successfully")
         except Exception as e:
             print(f"❌ Error saving stats: {e}")
+
+    # New function: Check growth metrics
+    def check_growth_metrics(self):
+        """Check and update growth metrics"""
+        try:
+            response = self.twitter.get(
+                f"https://api.twitter.com/2/users/{self.username}",
+                params={"user.fields": "public_metrics"}
+            )
+            if response.status_code == 200:
+                metrics = response.json()['data']['public_metrics']
+                self.daily_stats['followers'] = metrics['followers_count']
+                self.daily_stats['following'] = metrics['following_count']
+                self.save_daily_stats()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error checking metrics: {e}")
+            return False
+
+    # New function: Reply to replies
+    def reply_to_replies(self):
+        """Reply to replies on our tweets"""
+        try:
+            response = self.twitter.get(
+                f"https://api.twitter.com/2/users/{self.username}/mentions",
+                params={
+                    "max_results": 10,
+                    "tweet.fields": "created_at,in_reply_to_user_id"
+                }
+            )
+            if response.status_code != 200:
+                return False
+
+            mentions = response.json().get('data', [])
+            for mention in mentions:
+                if mention['in_reply_to_user_id'] == self.username:
+                    self.process_tweet(mention)
+            return True
+        except Exception as e:
+            print(f"Error processing replies: {e}")
+            return False
+
+    # New function: Retweet
+    def retweet(self, tweet_id):
+        """Retweet a tweet"""
+        try:
+            response = self.twitter.post(
+                f"https://api.twitter.com/2/users/{self.username}/retweets",
+                json={"tweet_id": tweet_id}
+            )
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Error retweeting: {e}")
+            return False
 
     def should_engage(self, tweet):
         """Enhanced smart engagement decision with rate limiting"""
@@ -483,12 +538,20 @@ def main():
         print("\nStarting main loop...")
         while True:
             print("\n=== New Iteration ===")
+            
+            # Check growth metrics every iteration
+            bot.check_growth_metrics()
+            
+            # Find and process recent tweets
             recent_tweets = bot.find_recent_tweets()
             print(f"Found {len(recent_tweets)} recent tweets")
             
             for tweet in recent_tweets:
                 if bot.should_engage(tweet):
                     bot.process_tweet(tweet)
+            
+            # Process replies to our tweets
+            bot.reply_to_replies()
             
             print("Waiting 5 minutes before next check...")
             time.sleep(300)
