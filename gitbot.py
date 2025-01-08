@@ -4,7 +4,7 @@ import random
 import json
 import openai
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC  # הוספנו UTC
 import requests
 from bs4 import BeautifulSoup
 import pytz
@@ -40,8 +40,8 @@ LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
-CURRENT_YEAR = datetime.now().year
-CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
+CURRENT_YEAR = datetime.now(UTC).year
+CURRENT_DATE = datetime.now(UTC).strftime('%Y-%m-%d')
 TWEET_AGE_LIMIT = 5  # minutes
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
 
@@ -217,7 +217,7 @@ class TwitterBot:
     def load_daily_stats(self):
         """Load or initialize daily statistics"""
         print("Loading daily stats...")
-        today = datetime.utcnow().strftime('%Y-%m-%d')
+        today = datetime.now(UTC).strftime('%Y-%m-%d')
         try:
             if os.path.exists(self.daily_stats_file):
                 with open(self.daily_stats_file, 'r') as f:
@@ -255,7 +255,7 @@ class TwitterBot:
     def should_engage(self, tweet):
         """Enhanced smart engagement decision with rate limiting"""
         # Check two-hour reply limit
-        two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+        two_hours_ago = datetime.now(UTC) - timedelta(hours=2)
         recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
                            if time > two_hours_ago)
         
@@ -279,7 +279,7 @@ class TwitterBot:
         """Gets current trending topics"""
         try:
             if (not self.last_trending_update or 
-                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
+                (datetime.now(UTC) - self.last_trending_update).total_seconds() >= 3600):
                 
                 response = self.twitter.get(
                     "https://api.twitter.com/2/trends/place?id=1"
@@ -291,7 +291,7 @@ class TwitterBot:
                         for trend in trends[0]['trends']
                         if trend['tweet_volume']
                     }
-                    self.last_trending_update = datetime.utcnow()
+                    self.last_trending_update = datetime.now(UTC)
                     
             return self.trending_cache
         except Exception as e:
@@ -301,7 +301,7 @@ class TwitterBot:
     def get_latest_news(self):
         """Gets latest AI and crypto news"""
         if (not self.last_news_check or 
-            (datetime.utcnow() - self.last_news_check).total_seconds() >= 3600):
+            (datetime.now(UTC) - self.last_news_check).total_seconds() >= 3600):
             
             self.current_news = []
             for source in NEWS_SOURCES:
@@ -314,7 +314,7 @@ class TwitterBot:
                 except Exception as e:
                     print(f"Error fetching news from {source}: {e}")
             
-            self.last_news_check = datetime.utcnow()
+            self.last_news_check = datetime.now(UTC)
         
         return self.current_news
 
@@ -354,9 +354,9 @@ class TwitterBot:
                         created_at = datetime.strptime(
                             tweet['created_at'], 
                             '%Y-%m-%dT%H:%M:%S.%fZ'
-                        )
+                        ).replace(tzinfo=UTC)
                         age_minutes = (
-                            datetime.utcnow() - created_at
+                            datetime.now(UTC) - created_at
                         ).total_seconds() / 60
                         
                         if age_minutes <= TWEET_AGE_LIMIT:
@@ -450,7 +450,7 @@ class TwitterBot:
                 print("✅ Reply posted successfully!")
                 self.daily_stats['replies'] += 1
                 self.save_daily_stats()
-                self.LAST_REPLY_TIME[tweet_id] = datetime.utcnow()
+                self.LAST_REPLY_TIME[tweet_id] = datetime.now(UTC)
                 return response.json()['data']['id']
             else:
                 print(f"❌ Reply failed: {response.status_code}")
