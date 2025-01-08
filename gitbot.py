@@ -188,17 +188,15 @@ class TwitterBot:
         self.last_trending_update = None
         self.current_news = []
         self.last_news_check = None
+        self.LAST_REPLY_TIME = {}
 
-    def should_engage(self, tweet):
-        """Enhanced smart engagement decision with rate limiting"""
-        # Check two-hour reply limit
-        two_hours_ago = datetime.utcnow() - timedelta(hours=2)
-        recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
-                           if time > two_hours_ago)
-        
-        if recent_replies >= REPLIES_PER_TWO_HOURS:
-            print("Two-hour reply limit reached")
-            return False
+    def save_daily_stats(self):
+        """Save daily statistics"""
+        try:
+            with open(self.daily_stats_file, 'w') as f:
+                json.dump(self.daily_stats, f)
+        except Exception as e:
+            print(f"Error saving stats: {e}")
 
         # Rest of your existing should_engage logic here
         text_lower = tweet['text'].lower()
