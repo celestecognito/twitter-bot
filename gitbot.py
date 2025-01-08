@@ -19,21 +19,17 @@ access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Enhanced Activity Limits
-REPLIES_PER_TWO_HOURS = 10  # שינוי מ-5 ל-10
-CONVERSATION_DEPTH_LIMIT = 5
+# Enhanced Activity Limits - More Freedom
+REPLIES_PER_TWO_HOURS = 10
 MINIMUM_WAIT_BETWEEN_REPLIES = 1
-REPLY_LIMIT = 50  # שינוי מ-30 ל-50
+REPLY_LIMIT = 50
+TWEET_AGE_LIMIT = 30  # Increased to 30 minutes
 LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
-# Time and Activity Configuration
+# Time Configuration
 CURRENT_YEAR = datetime.utcnow().year
 CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')
-TWEET_AGE_LIMIT = 10  # שינוי מ-5 ל-10 דקות
-
-# נמחק או נעיר את שורת PEAK_HOURS
-# PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
 
 # Growth and Engagement Goals
 FOLLOWER_GOALS = {
@@ -202,8 +198,8 @@ class TwitterBot:
         self.LAST_REPLY_TIME = {}
 
     def should_engage(self, tweet):
-        """Enhanced smart engagement decision with rate limiting"""
-        # Check two-hour reply limit
+        """Enhanced smart engagement decision with more flexible criteria"""
+        # Basic rate limiting
         two_hours_ago = datetime.utcnow() - timedelta(hours=2)
         recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
                            if time > two_hours_ago)
@@ -212,149 +208,59 @@ class TwitterBot:
             print("Two-hour reply limit reached")
             return False
 
-        # Rest of your existing should_engage logic here
         text_lower = tweet['text'].lower()
         engagement_score = 0
         
-        # Content relevance (0-5 points)
+        # More flexible content relevance scoring
         if any(topic.lower() in text_lower for topic in HOT_TOPICS):
-            engagement_score += 3
-            print(f"✅ Relevant topic found (+3)")
-        if any(trend.lower() in text_lower for trend in self.get_trending_topics()):
-            engagement_score += 2
-            print(f"✅ Trending topic found (+2)")
+            engagement_score += 1
+            print(f"✅ Relevant topic found (+1)")
             
-        # Author importance (0-3 points)
-        if tweet['author'] in TARGET_ACCOUNTS[:5]:
-            engagement_score += 3
-            print(f"✅ Top priority author (+3)")
-        elif tweet['author'] in TARGET_ACCOUNTS[5:15]:
-            engagement_score += 2
-            print(f"✅ High priority author (+2)")
-        elif tweet['author'] in TARGET_ACCOUNTS:
+        if any(trend.lower() in text_lower for trend in self.get_trending_topics()):
+            engagement_score += 1
+            print(f"✅ Trending topic found (+1)")
+            
+        # Check tweet metrics if available
+        if 'metrics' in tweet:
+            if tweet['metrics'].get('retweets', 0) > 10:
+                engagement_score += 1
+                print(f"✅ High retweets (+1)")
+            if tweet['metrics'].get('likes', 0) > 50:
+                engagement_score += 1
+                print(f"✅ High likes (+1)")
+                
+        # Author importance (simplified)
+        if tweet['author'] in TARGET_ACCOUNTS:
             engagement_score += 1
             print(f"✅ Target author (+1)")
         
-        return engagement_score >= 1
-
-    def load_daily_stats(self):
-        """Load or initialize daily statistics"""
-        today = datetime.utcnow().strftime('%Y-%m-%d')
-        try:
-            if os.path.exists(self.daily_stats_file):
-                with open(self.daily_stats_file, 'r') as f:
-                    stats = json.load(f)
-                    if stats.get('date') == today:
-                        self.daily_stats = stats
-                        return
-        except Exception as e:
-            print(f"Error loading stats: {e}")
-
-        # Initialize new daily stats
-        self.daily_stats = {
-            'date': today,
-            'tweets': 0,
-            'replies': 0,
-            'followers': 0,
-            'following': 0,
-            'previous_followers': 0,
-            'engagement_rate': 0.0
-        }
-        self.save_daily_stats()
-
-    def save_daily_stats(self):
-        """Save daily statistics"""
-        try:
-            with open(self.daily_stats_file, 'w') as f:
-                json.dump(self.daily_stats, f)
-        except Exception as e:
-            print(f"Error saving stats: {e}")
-
-    def get_trending_topics(self):
-        """Gets current trending topics"""
-        try:
-            if (not self.last_trending_update or 
-                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
-                
-                response = self.twitter.get(
-                    "https://api.twitter.com/1.1/trends/place.json?id=1"
-                )
-                if response.status_code == 200:
-                    trends = response.json()
-                    self.trending_cache = [trend['name'] for trend in trends[0]['trends']]
-                    self.last_trending_update = datetime.utcnow()
-                    
-            return self.trending_cache
-        except Exception as e:
-            print(f"Error getting trends: {e}")
-            return []
-
-    def get_latest_news(self):
-        """Gets latest AI and crypto news"""
-        if (not self.last_news_check or 
-            (datetime.utcnow() - self.last_news_check).total_seconds() >= 3600):
-            
-            self.current_news = []
-            for source in NEWS_SOURCES:
-                try:
-                    response = requests.get(source, timeout=10)
-                    if response.status_code == 200:
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        headlines = soup.find_all(['h1', 'h2'])[:5]
-                        self.current_news.extend([h.text.strip() for h in headlines])
-                except Exception as e:
-                    print(f"Error fetching news from {source}: {e}")
-            
-            self.last_news_check = datetime.utcnow()
-        
-        return self.current_news
-
-    def analyze_engagement(self, tweet_text):
-        """Analyzes if a tweet is likely to get engagement"""
-        score = 0
-        text_lower = tweet_text.lower()
-        
-        # Check for engaging elements
-        if '?' in tweet_text:
-            score += 2
-        if any(hook.lower() in text_lower for hook in ENGAGEMENT_PATTERNS['hooks']):
-            score += 3
-        if any(word in text_lower for word in ['exclusive', 'breaking', 'leaked']):
-            score += 2
-        if len(tweet_text.split()) < 15:  # Shorter tweets often do better
-            score += 1
-        if any(topic.lower() in text_lower for topic in HOT_TOPICS):
-            score += 2
-            
-        return score > 4
+        return engagement_score >= 1  # Only need 1 point to engage
 
     def find_recent_tweets(self):
-        """Finds very recent tweets from target accounts"""
+        """Enhanced tweet finding with broader search"""
         print("\nSearching for recent tweets...")
         recent_tweets = []
         
-        for account in TARGET_ACCOUNTS:
-            try:
-                user_response = self.twitter.get(
-                    f"https://api.twitter.com/1.1/users/show.json?screen_name={account}"
-                )
-                if user_response.status_code != 200:
-                    continue
-                
-                user_id = user_response.json()['id_str']
-                
-                tweets_response = self.twitter.get(
-                    f"https://api.twitter.com/1.1/statuses/user_timeline.json",
-                    params={
-                        "user_id": user_id,
-                        "count": 5,
-                        "tweet_mode": "extended"
-                    }
-                )
-                
-                if tweets_response.status_code == 200:
-                    tweets = tweets_response.json()
-                    for tweet in tweets:
+        try:
+            # Search for tweets using broader criteria
+            search_query = " OR ".join([f"from:{account}" for account in TARGET_ACCOUNTS[:10]])
+            
+            response = self.twitter.get(
+                "https://api.twitter.com/1.1/search/tweets.json",
+                params={
+                    "q": search_query,
+                    "count": 100,  # Get more tweets
+                    "tweet_mode": "extended",
+                    "result_type": "recent",
+                    "include_entities": True
+                }
+            )
+            
+            if response.status_code == 200:
+                tweets = response.json()['statuses']
+                for tweet in tweets:
+                    # Skip retweets
+                    if 'retweeted_status' not in tweet:
                         created_at = datetime.strptime(
                             tweet['created_at'],
                             '%a %b %d %H:%M:%S +0000 %Y'
@@ -367,19 +273,22 @@ class TwitterBot:
                             recent_tweets.append({
                                 'id': tweet['id_str'],
                                 'text': tweet['full_text'],
-                                'author': account,
-                                'age_minutes': age_minutes
+                                'author': tweet['user']['screen_name'],
+                                'age_minutes': age_minutes,
+                                'metrics': {
+                                    'retweets': tweet['retweet_count'],
+                                    'likes': tweet['favorite_count']
+                                }
                             })
-                            print(f"Found {age_minutes:.1f} minute old tweet from {account}")
-            
-            except Exception as e:
-                print(f"Error processing {account}: {e}")
-                continue
+                            print(f"Found {age_minutes:.1f} minute old tweet from @{tweet['user']['screen_name']}")
+        
+        except Exception as e:
+            print(f"Error in find_recent_tweets: {e}")
         
         return recent_tweets
 
     def generate_quick_reply(self, tweet):
-        """Enhanced quick reply generation"""
+        """Enhanced reply generation"""
         try:
             # Get trending topics and news
             trends = self.get_trending_topics()
@@ -433,7 +342,7 @@ class TwitterBot:
             return None
 
     def post_reply(self, tweet_id, reply_text):
-        """Posts a reply to a tweet with limit checking"""
+        """Posts a reply to a tweet"""
         if self.daily_stats['replies'] >= REPLY_LIMIT:
             print("⚠️ Daily reply limit reached")
             return False
@@ -541,30 +450,39 @@ def main():
         # Initialize bot
         bot = TwitterBot()
         
-        # Check metrics first
-        bot.check_growth_metrics()
-        
-        # Find and process recent tweets
-        recent_tweets = bot.find_recent_tweets()
-        
-        for tweet in recent_tweets:
-            if bot.should_engage(tweet):
-                # Retweet first
-                bot.retweet(tweet['id'])
+        while True:  # Added continuous operation
+            try:
+                # Check metrics first
+                bot.check_growth_metrics()
                 
-                # Then reply
-                reply = bot.generate_quick_reply(tweet)
-                if reply:
-                    reply_id = bot.post_reply(tweet['id'], reply)
-                    # Check replies to our reply after 5 minutes
-                    if reply_id:
-                        time.sleep(300)
-                        bot.reply_to_replies(reply_id)
-        
-        if not recent_tweets:
-            print("No recent tweets found this time")
-        
-        print("\n=== Done ===")
+                # Find and process recent tweets
+                recent_tweets = bot.find_recent_tweets()
+                print(f"Found {len(recent_tweets)} recent tweets")
+                
+                for tweet in recent_tweets:
+                    if bot.should_engage(tweet):
+                        # Retweet first
+                        bot.retweet(tweet['id'])
+                        
+                        # Then reply
+                        reply = bot.generate_quick_reply(tweet)
+                        if reply:
+                            reply_id = bot.post_reply(tweet['id'], reply)
+                            # Check replies to our reply after 5 minutes
+                            if reply_id:
+                                time.sleep(300)
+                                bot.reply_to_replies(reply_id)
+                
+                if not recent_tweets:
+                    print("No recent tweets found this time")
+                
+                print("\nWaiting 5 minutes before next check...")
+                time.sleep(300)  # Wait 5 minutes between iterations
+                
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(300)  # Wait 5 minutes on error
+                continue
         
     except Exception as e:
         print(f"\n❌ Fatal error: {e}")
