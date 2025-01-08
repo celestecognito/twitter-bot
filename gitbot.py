@@ -14,7 +14,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load credentials
 consumer_key = os.environ.get("CONSUMER_KEY")
 consumer_secret = os.environ.get("CONSUMER_SECRET")
 access_token = os.environ.get("ACCESS_TOKEN")
@@ -55,7 +54,6 @@ class TwitterBot:
             user_data = response.json()['data']
             self.user_id = user_data['id']
             self.username = user_data['username']
-            logger.info(f"Authenticated as @{self.username}")
         else:
             raise Exception(f"Authentication failed: {response.status_code}")
 
@@ -63,7 +61,6 @@ class TwitterBot:
         recent_tweets = []
         for account in TARGET_ACCOUNTS[:5]:
             try:
-                logger.info(f"Checking account: {account}")
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
@@ -82,7 +79,6 @@ class TwitterBot:
                                 'text': tweet['text'],
                                 'author': account
                             })
-                            logger.info(f"Found tweet from {account}")
                 time.sleep(15)
                     
             except Exception as e:
@@ -121,7 +117,6 @@ class TwitterBot:
             )
             
             if response.status_code in [200, 201]:
-                logger.info("Successfully posted reply")
                 return response.json()['data']['id']
             return None
             
