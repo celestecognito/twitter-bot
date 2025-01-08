@@ -28,8 +28,8 @@ LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
-CURRENT_YEAR = datetime.utcnow().year  # Updated to utcnow()
-CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')  # Updated to utcnow()
+CURRENT_YEAR = datetime.utcnow().year
+CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')
 TWEET_AGE_LIMIT = 5  # minutes
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
 
@@ -174,11 +174,18 @@ class TwitterBot:
             resource_owner_secret=access_token_secret
         )
         
-        # Get bot's user info
-        response = self.twitter.get("https://api.twitter.com/2/users/me")
+        # Get bot's user info using v1.1 API
+        response = self.twitter.get(
+            "https://api.twitter.com/1.1/account/verify_credentials.json"
+        )
+        
         if response.status_code == 200:
-            self.username = response.json()['data']['id']
+            user_data = response.json()
+            self.username = str(user_data['id'])
+            print(f"✅ Connected as: @{user_data['screen_name']}")
         else:
+            print(f"❌ Twitter API response: {response.status_code}")
+            print(f"Response text: {response.text}")
             raise Exception("Failed to get bot user info")
             
         # Initialize tracking variables
@@ -268,21 +275,17 @@ class TwitterBot:
                 (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
                 
                 response = self.twitter.get(
-                    "https://api.twitter.com/2/trends/place?id=1"
+                    "https://api.twitter.com/1.1/trends/place.json?id=1"
                 )
                 if response.status_code == 200:
                     trends = response.json()
-                    self.trending_cache = {
-                        trend['name']: trend['tweet_volume']
-                        for trend in trends[0]['trends']
-                        if trend['tweet_volume']
-                    }
+                    self.trending_cache = [trend['name'] for trend in trends[0]['trends']]
                     self.last_trending_update = datetime.utcnow()
                     
             return self.trending_cache
         except Exception as e:
             print(f"Error getting trends: {e}")
-            return {}
+            return []
 
     def get_latest_news(self):
         """Gets latest AI and crypto news"""
@@ -331,27 +334,28 @@ class TwitterBot:
         for account in TARGET_ACCOUNTS:
             try:
                 user_response = self.twitter.get(
-                    f"https://api.twitter.com/2/users/by/username/{account}"
+                    f"https://api.twitter.com/1.1/users/show.json?screen_name={account}"
                 )
                 if user_response.status_code != 200:
                     continue
                 
-                user_id = user_response.json()['data']['id']
+                user_id = user_response.json()['id_str']
                 
                 tweets_response = self.twitter.get(
-                    f"https://api.twitter.com/2/users/{user_id}/tweets",
+                    f"https://api.twitter.com/1.1/statuses/user_timeline.json",
                     params={
-                        "max_results": 5,
-                        "tweet.fields": "created_at,public_metrics"
+                        "user_id": user_id,
+                        "count": 5,
+                        "tweet_mode": "extended"
                     }
                 )
                 
                 if tweets_response.status_code == 200:
-                    tweets = tweets_response.json()['data']
+                    tweets = tweets_response.json()
                     for tweet in tweets:
                         created_at = datetime.strptime(
-                            tweet['created_at'], 
-                            '%Y-%m-%dT%H:%M:%S.%fZ'
+                            tweet['created_at'],
+                            '%a %b %d %H:%M:%S +0000 %Y'
                         )
                         age_minutes = (
                             datetime.utcnow() - created_at
@@ -359,11 +363,10 @@ class TwitterBot:
                         
                         if age_minutes <= TWEET_AGE_LIMIT:
                             recent_tweets.append({
-                                'id': tweet['id'],
-                                'text': tweet['text'],
+                                'id': tweet['id_str'],
+                                'text': tweet['full_text'],
                                 'author': account,
-                                'age_minutes': age_minutes,
-                                'metrics': tweet.get('public_metrics', {})
+                                'age_minutes': age_minutes
                             })
                             print(f"Found {age_minutes:.1f} minute old tweet from {account}")
             
@@ -436,20 +439,23 @@ class TwitterBot:
         print(f"\nPosting reply: {reply_text}")
         try:
             response = self.twitter.post(
-                "https://api.twitter.com/2/tweets",
-                json={
-                    "text": reply_text,
-                    "reply": {"in_reply_to_tweet_id": tweet_id}
+                "https://api.twitter.com/1.1/statuses/update.json",
+                params={
+                    "status": reply_text,
+                    "in_reply_to_status_id": tweet_id,
+                    "auto_populate_reply_metadata": True
                 }
             )
-            if response.status_code == 201:
+            
+            if response.status_code == 200:
                 print("✅ Reply posted!")
                 self.daily_stats['replies'] += 1
                 self.save_daily_stats()
                 self.LAST_REPLY_TIME[tweet_id] = datetime.utcnow()
-                return response.json()['data']['id']
+                return response.json()['id_str']
             else:
                 print(f"❌ Reply failed: {response.status_code}")
+                print(f"Response: {response.text}")
                 return False
         except Exception as e:
             print(f"❌ Error: {e}")
@@ -460,8 +466,7 @@ class TwitterBot:
         print(f"\nRetweeting tweet {tweet_id}")
         try:
             response = self.twitter.post(
-                f"https://api.twitter.com/2/users/{self.username}/retweets",
-                json={"tweet_id": tweet_id}
+                f"https://api.twitter.com/1.1/statuses/retweet/{tweet_id}.json"
             )
             if response.status_code == 200:
                 print("✅ Retweeted successfully!")
@@ -477,23 +482,24 @@ class TwitterBot:
         """Replies to responses on our tweets"""
         try:
             response = self.twitter.get(
-                "https://api.twitter.com/2/tweets/search/recent",
+                "https://api.twitter.com/1.1/search/tweets.json",
                 params={
-                    "query": f"conversation_id:{tweet_id}",
-                    "tweet.fields": "in_reply_to_user_id,author_id,created_at"
+                    "q": f"to:{self.username}",
+                    "since_id": tweet_id,
+                    "tweet_mode": "extended"
                 }
             )
             
             if response.status_code == 200:
-                replies = response.json().get('data', [])
+                replies = response.json()['statuses']
                 for reply in replies:
-                    if reply['author_id'] != self.username:
+                    if str(reply['in_reply_to_status_id']) == tweet_id:
                         engagement_reply = self.generate_quick_reply({
-                            'text': reply['text'],
-                            'author': reply['author_id']
+                            'text': reply['full_text'],
+                            'author': reply['user']['screen_name']
                         })
                         if engagement_reply:
-                            self.post_reply(reply['id'], engagement_reply)
+                            self.post_reply(reply['id_str'], engagement_reply)
                             time.sleep(30)  # Avoid rate limits
             
         except Exception as e:
@@ -503,16 +509,16 @@ class TwitterBot:
         """Monitors follower growth and engagement"""
         try:
             response = self.twitter.get(
-                f"https://api.twitter.com/2/users/{self.username}",
-                params={"user.fields": "public_metrics"}
+                "https://api.twitter.com/1.1/users/show.json",
+                params={"user_id": self.username}
             )
             
             if response.status_code == 200:
-                metrics = response.json()['data']['public_metrics']
+                user_data = response.json()
                 
                 # Update daily stats
-                self.daily_stats['followers'] = metrics['followers_count']
-                self.daily_stats['following'] = metrics['following_count']
+                self.daily_stats['followers'] = user_data['followers_count']
+                self.daily_stats['following'] = user_data['friends_count']
                 
                 # Check if meeting goals
                 daily_growth = (self.daily_stats['followers'] - 
