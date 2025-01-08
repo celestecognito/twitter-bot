@@ -45,6 +45,7 @@ ENGAGEMENT_GOALS = {
     'retweets_per_tweet': 20,
     'replies_per_tweet': 10
 }
+
 # Target Accounts by Category
 TECH_AI_LEADERS = [
     "elonmusk", "sama", "naval", "lexfridman", 
@@ -161,6 +162,7 @@ Your style:
 11. IMPORTANT: Never use quotes (\") in your responses and never start responses with quotes
 12. Always be aware it's {CURRENT_DATE} and reference current events
 13. Never reference outdated information or past years as current"""
+
 class TwitterBot:
     def __init__(self):
         """Initialize the Twitter bot"""
@@ -250,7 +252,8 @@ class TwitterBot:
             'engagement_rate': 0.0
         }
         self.save_daily_stats()
-            def save_daily_stats(self):
+
+    def save_daily_stats(self):
         """Save daily statistics"""
         try:
             with open(self.daily_stats_file, 'w') as f:
