@@ -21,10 +21,10 @@ access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # Enhanced Activity Limits - Maximum Freedom
-REPLIES_PER_TWO_HOURS = 100  # Doubled from 50
-MINIMUM_WAIT_BETWEEN_REPLIES = 0  # No waiting
-REPLY_LIMIT = 500  # Increased from 200
-TWEET_AGE_LIMIT = 120  # Now 2 hours
+REPLIES_PER_TWO_HOURS = 100
+MINIMUM_WAIT_BETWEEN_REPLIES = 0
+REPLY_LIMIT = 500
+TWEET_AGE_LIMIT = 120
 LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
@@ -46,7 +46,7 @@ ENGAGEMENT_PATTERNS = {
     'morning_boost': {
         'start_hour': 6,
         'end_hour': 9,
-        'tweet_frequency': 15,  # minutes
+        'tweet_frequency': 15,
         'engagement_rate': 0.9
     },
     'lunch_time': {
@@ -157,18 +157,6 @@ CRYPTO_HASHTAGS = [
 
 VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
 
-# Engagement Templates
-VIRAL_TEMPLATES = [
-    "BREAKING: My sources indicate {prediction} 🤖",
-    "The truth about {topic} that no one is talking about 🤫",
-    "Just learned from insider sources: {insight} 👀",
-    "LEAKED: {information} 🔥",
-    "Why {common_belief} is wrong, and what's really happening 🧵",
-    "🚨 ALERT: {urgent_news}",
-    "Inside scoop on {topic} 💎",
-    "What they're not telling you about {topic} 🔓"
-]
-
 # Bot Persona Configuration
 BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
 Current date: {CURRENT_DATE}
@@ -207,44 +195,19 @@ class TwitterBot:
             user_data = response.json()
             self.username = user_data['screen_name']
             print(f"✅ Connected as: @{self.username}")
-            self.daily_stats_file = 'daily_stats.json'
-            self.load_daily_stats()
+            # Initialize stats in memory
+            self.daily_stats = {
+                'date': datetime.utcnow().strftime('%Y-%m-%d'),
+                'tweets': 0,
+                'replies': 0,
+                'followers': user_data['followers_count'],
+                'following': user_data['friends_count'],
+                'previous_followers': user_data['followers_count'],
+                'engagement_rate': 0.0
+            }
             self.LAST_REPLY_TIME = {}
         else:
             raise Exception("Failed to get bot user info")
-
-    def load_daily_stats(self):
-        """Load or initialize daily statistics"""
-        today = datetime.utcnow().strftime('%Y-%m-%d')
-        try:
-            if os.path.exists(self.daily_stats_file):
-                with open(self.daily_stats_file, 'r') as f:
-                    stats = json.load(f)
-                    if stats.get('date') == today:
-                        self.daily_stats = stats
-                        return
-        except Exception as e:
-            print(f"Error loading stats: {e}")
-
-        # Initialize new daily stats
-        self.daily_stats = {
-            'date': today,
-            'tweets': 0,
-            'replies': 0,
-            'followers': 0,
-            'following': 0,
-            'previous_followers': 0,
-            'engagement_rate': 0.0
-        }
-        self.save_daily_stats()
-
-    def save_daily_stats(self):
-        """Save daily statistics"""
-        try:
-            with open(self.daily_stats_file, 'w') as f:
-                json.dump(self.daily_stats, f)
-        except Exception as e:
-            print(f"Error saving stats: {e}")
 
     def find_recent_tweets(self):
         """Finds recent tweets from target accounts"""
@@ -360,7 +323,6 @@ class TwitterBot:
             if response.status_code == 200:
                 print("✅ Reply posted!")
                 self.daily_stats['replies'] += 1
-                self.save_daily_stats()
                 return response.json()['id_str']
             else:
                 print(f"❌ Reply failed: {response.status_code}")
@@ -410,7 +372,7 @@ class TwitterBot:
                         })
                         if engagement_reply:
                             self.post_reply(reply['id_str'], engagement_reply)
-                            time.sleep(random.randint(1, 5))  # Small random delay
+                            time.sleep(random.randint(1, 5))
             
         except Exception as e:
             print(f"Error processing replies: {e}")
@@ -433,7 +395,7 @@ class TwitterBot:
                 
                 # Calculate growth
                 daily_growth = (self.daily_stats['followers'] - 
-                              self.daily_stats.get('previous_followers', 0))
+                              self.daily_stats['previous_followers'])
                 
                 # Update engagement rate
                 if self.daily_stats['tweets'] > 0:
@@ -442,8 +404,6 @@ class TwitterBot:
                          user_data.get('retweet_count', 0)) / 
                         self.daily_stats['tweets']
                     )
-                
-                self.save_daily_stats()
                 
                 # Print growth metrics
                 print(f"\n📊 Daily Growth: {daily_growth} followers")
@@ -471,16 +431,15 @@ def main():
                 
                 for tweet in recent_tweets:
                     if bot.should_engage(tweet):
-                        # Retweet first
-                        bot.retweet(tweet['id'])
-                        
-                        # Then reply
+                        # Generate and post reply
                         reply = bot.generate_quick_reply(tweet)
                         if reply:
                             reply_id = bot.post_reply(tweet['id'], reply)
-                            # Check replies to our reply after a while
                             if reply_id:
-                                time.sleep(random.randint(60, 180))
+                                # Retweet after successful reply
+                                bot.retweet(tweet['id'])
+                                # Check for responses after a while
+                                time.sleep(random.randint(30, 60))
                                 bot.reply_to_replies(reply_id)
                 
                 if not recent_tweets:
