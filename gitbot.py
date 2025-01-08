@@ -13,12 +13,20 @@ import pytz
 print("=== Starting Enhanced Twitter Bot ===")
 
 # API credentials
+# API credentials
 print("Loading credentials...")
 consumer_key = os.environ.get("CONSUMER_KEY")
 consumer_secret = os.environ.get("CONSUMER_SECRET")
 access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+# Enhanced Activity Limits (הוסף את זה)
+REPLIES_PER_TWO_HOURS = 10
+CONVERSATION_DEPTH_LIMIT = 5
+MINIMUM_WAIT_BETWEEN_REPLIES = 3
+LAST_REPLY_TIME = {}
+ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
 CURRENT_YEAR = datetime.now().year
@@ -470,10 +478,40 @@ class TwitterBot:
             print(f"Error checking metrics: {e}")
 
     def should_engage(self, tweet):
-        """Enhanced engagement decision"""
-        if self.daily_stats['replies'] >= REPLY_LIMIT:
-            print("Daily reply limit reached")
-            return False
+    """Enhanced smart engagement decision with rate limiting"""
+    # Check two-hour reply limit
+    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+    recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
+                        if time > two_hours_ago)
+    
+    if recent_replies >= REPLIES_PER_TWO_HOURS:
+        print("Two-hour reply limit reached")
+        return False
+
+    # Rest of your existing should_engage logic here
+    text_lower = tweet['text'].lower()
+    engagement_score = 0
+    
+    # Content relevance (0-5 points)
+    if any(topic.lower() in text_lower for topic in HOT_TOPICS):
+        engagement_score += 3
+        print(f"✅ Relevant topic found (+3)")
+    if any(trend.lower() in text_lower for trend in self.get_trending_topics()):
+        engagement_score += 2
+        print(f"✅ Trending topic found (+2)")
+        
+    # Author importance (0-3 points)
+    if tweet['author'] in TARGET_ACCOUNTS[:5]:
+        engagement_score += 3
+        print(f"✅ Top priority author (+3)")
+    elif tweet['author'] in TARGET_ACCOUNTS[5:15]:
+        engagement_score += 2
+        print(f"✅ High priority author (+2)")
+    elif tweet['author'] in TARGET_ACCOUNTS:
+        engagement_score += 1
+        print(f"✅ Target author (+1)")
+    
+    return engagement_score >= 8
             
         # Basic checks
         text_lower = tweet['text'].lower()
