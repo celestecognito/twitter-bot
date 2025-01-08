@@ -21,28 +21,19 @@ access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Target accounts and topics
 TARGET_ACCOUNTS = [
-    # AI & Tech
     "elonmusk", "sama", "naval", "lexfridman",
     "OpenAI", "anthropic", "DeepMind", "Google_AI",
-    # Crypto
     "cz_binance", "VitalikButerin", "tyler", "binance",
-    # Finance & Investment
     "RayDalio", "TheLastBearSta1", "jimcramer", "michaeljburry",
-    # Humor & Memes
     "TheMemeInvestor", "WallStreetMemes", "unusual_whales"
 ]
 
 HOT_TOPICS = [
-    # AI & Tech
     "AGI", "AI safety", "Machine learning", "Neural networks",
     "Large language models", "Artificial Intelligence", "AI",
-    # Crypto
     "Bitcoin", "Ethereum", "Crypto", "Web3", "Blockchain", "BTC", "ETH",
-    # Finance
     "Stocks", "Investment", "Trading", "Market analysis", "Stock market",
-    # Humor
     "meme stocks", "stonks", "trading memes", "crypto memes"
 ]
 
@@ -69,7 +60,7 @@ class TwitterBot:
 
     def find_recent_tweets(self):
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:5]:  # Changed from 3 to 5
+        for account in TARGET_ACCOUNTS[:5]:
             try:
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
@@ -89,7 +80,7 @@ class TwitterBot:
                                 'text': tweet['text'],
                                 'author': account
                             })
-                time.sleep(60)  # Wait between requests
+                time.sleep(60)
                     
             except Exception as e:
                 logger.error(f"Error getting tweets from {account}: {e}")
