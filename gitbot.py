@@ -4,7 +4,6 @@ import random
 import json
 import openai
 import os
-import openai
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
@@ -12,7 +11,6 @@ import pytz
 
 print("=== Starting Enhanced Twitter Bot ===")
 
-# API credentials
 # API credentials
 print("Loading credentials...")
 consumer_key = os.environ.get("CONSUMER_KEY")
