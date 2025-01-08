@@ -9,7 +9,17 @@ import requests
 from bs4 import BeautifulSoup
 import pytz
 
+# Add debug prints here
+print("=== Debug Info ===")
+print("Environment variables:")
+for key in ['CONSUMER_KEY', 'CONSUMER_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET', 'OPENAI_API_KEY']:
+    exists = bool(os.environ.get(key))
+    print(f"{key}: {'✅' if exists else '❌'}")
+print("==================")
+
 print("=== Starting Enhanced Twitter Bot ===")
+
+# Rest of your code continues here...
 
 # API credentials
 print("Loading credentials...")
