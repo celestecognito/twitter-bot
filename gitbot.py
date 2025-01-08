@@ -59,7 +59,7 @@ class TwitterBot:
 
     def find_recent_tweets(self):
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:5]:
+        for account in TARGET_ACCOUNTS[:10]:
             try:
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
