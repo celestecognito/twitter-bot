@@ -261,7 +261,7 @@ class TwitterBot:
         except Exception as e:
             print(f"Error saving stats: {e}")
 
-        def get_trending_topics(self):
+    def get_trending_topics(self):
         """Gets current trending topics"""
         try:
             if (not self.last_trending_update or 
