@@ -24,16 +24,14 @@ TARGET_ACCOUNTS = [
     "elonmusk", "sama", "naval", "lexfridman",
     "OpenAI", "anthropic", "DeepMind", "Google_AI",
     "cz_binance", "VitalikButerin", "tyler", "binance",
-    "RayDalio", "TheLastBearSta1", "jimcramer", "michaeljburry",
-    "TheMemeInvestor", "WallStreetMemes", "unusual_whales"
+    "RayDalio", "TheLastBearSta1", "jimcramer", "michaeljburry"
 ]
 
 HOT_TOPICS = [
     "AGI", "AI safety", "Machine learning", "Neural networks",
     "Large language models", "Artificial Intelligence", "AI",
     "Bitcoin", "Ethereum", "Crypto", "Web3", "Blockchain", "BTC", "ETH",
-    "Stocks", "Investment", "Trading", "Market analysis", "Stock market",
-    "meme stocks", "stonks", "trading memes", "crypto memes"
+    "Stocks", "Investment", "Trading", "Market analysis"
 ]
 
 class TwitterBot:
@@ -54,13 +52,15 @@ class TwitterBot:
             user_data = response.json()['data']
             self.user_id = user_data['id']
             self.username = user_data['username']
+            logger.info(f"Authenticated as @{self.username}")
         else:
             raise Exception(f"Authentication failed: {response.status_code}")
 
     def find_recent_tweets(self):
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:10]:
+        for account in TARGET_ACCOUNTS[:5]:  # Check 5 accounts
             try:
+                logger.info(f"Checking account: {account}")
                 response = self.twitter.get(
                     f"https://api.twitter.com/2/users/by/username/{account}"
                 )
@@ -69,7 +69,7 @@ class TwitterBot:
                     user_id = response.json()['data']['id']
                     tweets = self.twitter.get(
                         f"https://api.twitter.com/2/users/{user_id}/tweets",
-                        params={"max_results": 5}
+                        params={"max_results": 5}  # Get 5 tweets per account
                     )
                     
                     if tweets.status_code == 200:
@@ -79,7 +79,8 @@ class TwitterBot:
                                 'text': tweet['text'],
                                 'author': account
                             })
-                time.sleep(15)
+                            logger.info(f"Found tweet from {account}")
+                time.sleep(2)  # Small delay between requests
                     
             except Exception as e:
                 logger.error(f"Error getting tweets from {account}: {e}")
@@ -117,6 +118,7 @@ class TwitterBot:
             )
             
             if response.status_code in [200, 201]:
+                logger.info("Successfully posted reply")
                 return response.json()['data']['id']
             return None
             
@@ -134,7 +136,7 @@ def main():
                 reply = bot.generate_quick_reply(tweet)
                 if reply:
                     bot.post_reply(tweet['id'], reply)
-                    time.sleep(15)
+                    time.sleep(5)
                     
     except Exception as e:
         logger.error(f"Error: {e}")
