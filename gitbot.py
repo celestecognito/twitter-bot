@@ -261,28 +261,23 @@ class TwitterBot:
         except Exception as e:
             print(f"Error saving stats: {e}")
 
-    def get_trending_topics(self):
-    """Gets current trending topics"""
-    try:
-        if (not self.last_trending_update or 
-            (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
-            
-            response = self.twitter.get(
-                "https://api.twitter.com/2/trends/place?id=1"
-            )
-            if response.status_code == 200:
-                trends = response.json()
-                self.trending_cache = {
-                    trend['name']: trend['tweet_volume']
-                    for trend in trends[0]['trends']
-                    if trend['tweet_volume']
-                }
-                self.last_trending_update = datetime.utcnow()
+        def get_trending_topics(self):
+        """Gets current trending topics"""
+        try:
+            if (not self.last_trending_update or 
+                (datetime.utcnow() - self.last_trending_update).total_seconds() >= 3600):
                 
-        return self.trending_cache  # התיקון: מחזיר את ה-cache במקום dictionary ריק
-    except Exception as e:
-        print(f"Error getting trends: {e}")
-        return {}
+                response = self.twitter.get(
+                    "https://api.twitter.com/2/trends/place?id=1"
+                )
+                if response.status_code == 200:
+                    trends = response.json()
+                    self.trending_cache = {
+                        trend['name']: trend['tweet_volume']
+                        for trend in trends[0]['trends']
+                        if trend['tweet_volume']
+                    }
+                    self.last_trending_update = datetime.utcnow()
                     
             return self.trending_cache
         except Exception as e:
