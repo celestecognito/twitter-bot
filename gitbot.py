@@ -20,18 +20,20 @@ access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # Enhanced Activity Limits
-REPLIES_PER_TWO_HOURS = 5  # Updated value
+REPLIES_PER_TWO_HOURS = 10  # שינוי מ-5 ל-10
 CONVERSATION_DEPTH_LIMIT = 5
-MINIMUM_WAIT_BETWEEN_REPLIES = 1  # Updated value
-REPLY_LIMIT = 30  # Updated value
+MINIMUM_WAIT_BETWEEN_REPLIES = 1
+REPLY_LIMIT = 50  # שינוי מ-30 ל-50
 LAST_REPLY_TIME = {}
 ACTIVE_CONVERSATIONS = {}
 
 # Time and Activity Configuration
 CURRENT_YEAR = datetime.utcnow().year
 CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')
-TWEET_AGE_LIMIT = 5  # minutes
-PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
+TWEET_AGE_LIMIT = 10  # שינוי מ-5 ל-10 דקות
+
+# נמחק או נעיר את שורת PEAK_HOURS
+# PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
 
 # Growth and Engagement Goals
 FOLLOWER_GOALS = {
