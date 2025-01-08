@@ -58,7 +58,7 @@ class TwitterBot:
 
     def find_recent_tweets(self):
         recent_tweets = []
-        for account in TARGET_ACCOUNTS[:5]:  # Check 5 accounts
+        for account in TARGET_ACCOUNTS[:3]:  # Check 5 accounts
             try:
                 logger.info(f"Checking account: {account}")
                 response = self.twitter.get(
