@@ -31,7 +31,6 @@ CURRENT_YEAR = datetime.now().year
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 TWEET_AGE_LIMIT = 5  # minutes
 PEAK_HOURS = [13, 14, 15, 16, 19, 20, 21, 22]  # EST
-REPLY_LIMIT = 20  # daily limit
 
 # Growth and Engagement Goals
 FOLLOWER_GOALS = {
