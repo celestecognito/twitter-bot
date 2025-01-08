@@ -1,21 +1,21 @@
-from requests_oauthlib import OAuth1Session
+import os
+import json
 import time
 import random
-import json
-import openai
-import os
+import traceback
 from datetime import datetime, timedelta
+import pytz
 import requests
 from bs4 import BeautifulSoup
-import pytz
-import traceback
+import openai
+from requests_oauthlib import OAuth1Session
 
 print("=== Starting Enhanced Twitter Bot ===")
 
 # API credentials
 print("Loading credentials...")
 consumer_key = os.environ.get("CONSUMER_KEY")
-consumer_secret = os.environ.get("CONSUMER_SECRET")
+consumer_secret = os.environ.get("CONSUMER_SECRET") 
 access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -128,7 +128,7 @@ class TwitterBot:
         """Initialize the Twitter bot"""
         print("Initializing Twitter bot...")
         self.twitter = OAuth1Session(
-            consumer_key,
+            client_key=consumer_key,
             client_secret=consumer_secret,
             resource_owner_key=access_token,
             resource_owner_secret=access_token_secret
@@ -137,7 +137,8 @@ class TwitterBot:
         
         # Get bot's user info
         response = self.twitter.get(
-            "https://api.twitter.com/1.1/account/verify_credentials.json"
+            "https://api.twitter.com/1.1/account/verify_credentials.json",
+            params={"include_email": "false"}
         )
         print(f"Connection test status code: {response.status_code}")
         
@@ -173,15 +174,16 @@ class TwitterBot:
                 "https://api.twitter.com/1.1/search/tweets.json",
                 params={
                     "q": search_query,
-                    "count": 100,
+                    "count": 50,
                     "tweet_mode": "extended",
-                    "result_type": "recent"
+                    "result_type": "recent",
+                    "lang": "en"
                 }
             )
             print(f"Search status code: {response.status_code}")
             
             if response.status_code == 200:
-                tweets = response.json()['statuses']
+                tweets = response.json().get('statuses', [])
                 print(f"Found {len(tweets)} tweets total")
                 
                 for tweet in tweets:
@@ -217,7 +219,7 @@ class TwitterBot:
         """Determines if we should engage with a tweet"""
         try:
             # Always engage with top accounts
-            if tweet['author'] in TECH_AI_LEADERS[:5]:
+            if tweet['author'].lower() in [acc.lower() for acc in TECH_AI_LEADERS[:5]]:
                 print(f"Engaging with leader: {tweet['author']}")
                 return True
                 
@@ -279,10 +281,10 @@ class TwitterBot:
             
             response = self.twitter.post(
                 "https://api.twitter.com/1.1/statuses/update.json",
-                params={
+                data={
                     "status": reply_text,
                     "in_reply_to_status_id": tweet_id,
-                    "auto_populate_reply_metadata": True
+                    "auto_populate_reply_metadata": "true"
                 }
             )
             
