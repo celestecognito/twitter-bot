@@ -19,7 +19,7 @@ access_token = os.environ.get("ACCESS_TOKEN")
 access_token_secret = os.environ.get("ACCESS_TOKEN_SECRET")
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# Enhanced Activity Limits (הוסף את זה)
+# Enhanced Activity Limits
 REPLIES_PER_TWO_HOURS = 10
 CONVERSATION_DEPTH_LIMIT = 5
 MINIMUM_WAIT_BETWEEN_REPLIES = 3
@@ -45,7 +45,6 @@ ENGAGEMENT_GOALS = {
     'retweets_per_tweet': 20,
     'replies_per_tweet': 10
 }
-
 # Target Accounts by Category
 TECH_AI_LEADERS = [
     "elonmusk", "sama", "naval", "lexfridman", 
@@ -163,7 +162,34 @@ Your style:
 12. Always be aware it's {CURRENT_DATE} and reference current events
 13. Never reference outdated information or past years as current"""
 class TwitterBot:
-        def should_engage(self, tweet):
+    def __init__(self):
+        """Initialize the Twitter bot"""
+        print("Initializing Twitter bot...")
+        self.twitter = OAuth1Session(
+            consumer_key,
+            client_secret=consumer_secret,
+            resource_owner_key=access_token,
+            resource_owner_secret=access_token_secret
+        )
+        
+        # Get bot's user info
+        response = self.twitter.get("https://api.twitter.com/2/users/me")
+        if response.status_code == 200:
+            self.username = response.json()['data']['id']
+        else:
+            raise Exception("Failed to get bot user info")
+            
+        # Initialize tracking variables
+        self.daily_stats_file = 'daily_stats.json'
+        self.daily_stats = {}
+        self.load_daily_stats()
+        
+        self.trending_cache = {}
+        self.last_trending_update = None
+        self.current_news = []
+        self.last_news_check = None
+
+    def should_engage(self, tweet):
         """Enhanced smart engagement decision with rate limiting"""
         # Check two-hour reply limit
         two_hours_ago = datetime.utcnow() - timedelta(hours=2)
@@ -223,8 +249,7 @@ class TwitterBot:
             'engagement_rate': 0.0
         }
         self.save_daily_stats()
-
-    def save_daily_stats(self):
+            def save_daily_stats(self):
         """Save daily statistics"""
         try:
             with open(self.daily_stats_file, 'w') as f:
@@ -388,9 +413,11 @@ class TwitterBot:
                 tag for tag in VIRAL_HASHTAGS
                 if any(topic.lower() in tag.lower() for topic in HOT_TOPICS)
             ]
-            hashtags = " ".join(random.sample(relevant_hashtags, 2))
+            if relevant_hashtags:
+                hashtags = " ".join(random.sample(relevant_hashtags, min(2, len(relevant_hashtags))))
+                reply = f"{reply} {hashtags}"
             
-            return f"{reply} {hashtags}"
+            return reply
             
         except Exception as e:
             print(f"Error generating reply: {e}")
@@ -415,6 +442,7 @@ class TwitterBot:
                 print("✅ Reply posted!")
                 self.daily_stats['replies'] += 1
                 self.save_daily_stats()
+                self.LAST_REPLY_TIME[tweet_id] = datetime.utcnow()
                 return response.json()['data']['id']
             else:
                 print(f"❌ Reply failed: {response.status_code}")
@@ -493,57 +521,6 @@ class TwitterBot:
                 
         except Exception as e:
             print(f"Error checking metrics: {e}")
-
-    def should_engage(self, tweet):
-    """Enhanced smart engagement decision with rate limiting"""
-    # Check two-hour reply limit
-    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
-    recent_replies = sum(1 for time in self.LAST_REPLY_TIME.values() 
-                        if time > two_hours_ago)
-    
-    if recent_replies >= REPLIES_PER_TWO_HOURS:
-        print("Two-hour reply limit reached")
-        return False
-
-    # Rest of your existing should_engage logic here
-    text_lower = tweet['text'].lower()
-    engagement_score = 0
-    
-    # Content relevance (0-5 points)
-    if any(topic.lower() in text_lower for topic in HOT_TOPICS):
-        engagement_score += 3
-        print(f"✅ Relevant topic found (+3)")
-    if any(trend.lower() in text_lower for trend in self.get_trending_topics()):
-        engagement_score += 2
-        print(f"✅ Trending topic found (+2)")
-        
-    # Author importance (0-3 points)
-    if tweet['author'] in TARGET_ACCOUNTS[:5]:
-        engagement_score += 3
-        print(f"✅ Top priority author (+3)")
-    elif tweet['author'] in TARGET_ACCOUNTS[5:15]:
-        engagement_score += 2
-        print(f"✅ High priority author (+2)")
-    elif tweet['author'] in TARGET_ACCOUNTS:
-        engagement_score += 1
-        print(f"✅ Target author (+1)")
-    
-    return engagement_score >= 8
-            
-        # Basic checks
-        text_lower = tweet['text'].lower()
-        relevant_topics = any(topic.lower() in text_lower for topic in HOT_TOPICS)
-        is_peak_hour = datetime.utcnow().hour in PEAK_HOURS
-        is_priority = tweet['author'] in TARGET_ACCOUNTS[:10]
-        
-        # Enhanced checks
-        is_trending = any(trend.lower() in text_lower 
-                         for trend in self.get_trending_topics())
-        is_engaging = self.analyze_engagement(tweet['text'])
-        
-        return ((relevant_topics or is_trending or is_priority) and 
-                (is_peak_hour or is_engaging) and 
-                tweet['age_minutes'] <= TWEET_AGE_LIMIT)
 
 def main():
     print("\n=== Starting Bot ===\n")
