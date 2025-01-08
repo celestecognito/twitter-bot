@@ -193,7 +193,6 @@ class TwitterBot:
             print("Getting bot user info...")
             response = self.twitter.get("https://api.twitter.com/2/users/me")
             print(f"Response status: {response.status_code}")
-            print(f"Response content: {response.text}")  # Added for debugging
             
             if response.status_code == 200:
                 self.username = response.json()['data']['id']
@@ -255,93 +254,73 @@ class TwitterBot:
         except Exception as e:
             print(f"❌ Error saving stats: {str(e)}")
 
-    def check_growth_metrics(self):
-        """Check and update growth metrics"""
+    def get_trending_topics(self):
+        """Gets current trending topics"""
         try:
-            print("Checking growth metrics...")
-            response = self.twitter.get(
-                f"https://api.twitter.com/2/users/{self.username}",
-                params={"user.fields": "public_metrics"}
-            )
-            print(f"Growth metrics response: {response.status_code}")
-            if response.status_code == 200:
-                metrics = response.json()['data']['public_metrics']
-                self.daily_stats['followers'] = metrics['followers_count']
-                self.daily_stats['following'] = metrics['following_count']
-                self.save_daily_stats()
-                print("✅ Growth metrics updated")
-                return True
-            print(f"❌ Failed to get growth metrics: {response.text}")
-            return False
-        except Exception as e:
-            print(f"Error checking metrics: {str(e)}")
-            return False
-
-    def find_recent_tweets(self):
-        """Finds very recent tweets from target accounts"""
-        print("\n=== Searching Recent Tweets ===")
-        recent_tweets = []
-        
-        try:
-            for account in TECH_AI_LEADERS[:5]:
-                print(f"\nChecking account: {account}")
-                try:
-                    print("Getting user ID...")
-                    user_response = self.twitter.get(
-                        f"https://api.twitter.com/2/users/by/username/{account}"
-                    )
-                    print(f"User response status: {user_response.status_code}")
-                    print(f"User response content: {user_response.text}")
-                    
-                    if user_response.status_code != 200:
-                        print(f"❌ Failed to get user info for {account}")
-                        continue
-                    
-                    user_id = user_response.json()['data']['id']
-                    print(f"✅ Got user ID: {user_id}")
-                    
-                    print("Getting recent tweets...")
-                    tweets_response = self.twitter.get(
-                        f"https://api.twitter.com/2/users/{user_id}/tweets",
-                        params={
-                            "max_results": 5,
-                            "tweet.fields": "created_at,public_metrics"
-                        }
-                    )
-                    print(f"Tweets response status: {tweets_response.status_code}")
-                    
-                    if tweets_response.status_code == 200:
-                        tweets = tweets_response.json().get('data', [])
-                        for tweet in tweets:
-                            created_at = datetime.strptime(
-                                tweet['created_at'], 
-                                '%Y-%m-%dT%H:%M:%S.%fZ'
-                            ).replace(tzinfo=UTC)
-                            age_minutes = (
-                                datetime.now(UTC) - created_at
-                            ).total_seconds() / 60
-                            
-                            if age_minutes <= TWEET_AGE_LIMIT:
-                                recent_tweets.append({
-                                    'id': tweet['id'],
-                                    'text': tweet['text'],
-                                    'author': account,
-                                    'age_minutes': age_minutes,
-                                    'metrics': tweet.get('public_metrics', {})
-                                })
-                                print(f"Found {age_minutes:.1f} minute old tweet from {account}")
-                    else:
-                        print(f"❌ Failed to get tweets: {tweets_response.text}")
+            if (not self.last_trending_update or 
+                (datetime.now(UTC) - self.last_trending_update).total_seconds() >= 3600):
                 
-                except Exception as e:
-                    print(f"Error processing {account}: {str(e)}")
-                    continue
+                time.sleep(15)  # Rate limiting delay
+                response = self.twitter.get(
+                    "https://api.twitter.com/2/trends/place?id=1"  # 1 is the global woeid
+                )
+                if response.status_code == 200:
+                    trends = response.json()
+                    self.trending_cache = [trend['name'] for trend in trends[0]['trends']]
+                    self.last_trending_update = datetime.now(UTC)
                     
+            return self.trending_cache
         except Exception as e:
-            print(f"Fatal error in find_recent_tweets: {str(e)}")
+            print(f"Error getting trends: {str(e)}")
             return []
+
+    def get_latest_news(self):
+        """Gets latest AI and crypto news"""
+        try:
+            if (not self.last_news_check or 
+                (datetime.now(UTC) - self.last_news_check).total_seconds() >= 3600):
+                
+                self.current_news = []
+                for source in NEWS_SOURCES[:2]:  # Limit to 2 sources to avoid too many requests
+                    try:
+                        time.sleep(5)  # Rate limiting delay
+                        response = requests.get(source, timeout=10)
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            headlines = soup.find_all(['h1', 'h2'])[:5]
+                            self.current_news.extend([h.text.strip() for h in headlines])
+                    except Exception as e:
+                        print(f"Error fetching news from {source}: {e}")
+                
+                self.last_news_check = datetime.now(UTC)
             
-        return recent_tweets
+            return self.current_news
+        except Exception as e:
+            print(f"Error getting news: {str(e)}")
+            return []
+
+            def should_engage(self, tweet):
+        """Determine if we should engage with a tweet"""
+        try:
+            # Check if we've replied too recently
+            if tweet['id'] in self.LAST_REPLY_TIME:
+                last_reply = self.LAST_REPLY_TIME[tweet['id']]
+                minutes_since_reply = (datetime.now(UTC) - last_reply).total_seconds() / 60
+                if minutes_since_reply < MINIMUM_WAIT_BETWEEN_REPLIES:
+                    return False
+
+            # Check daily reply limit
+            if self.daily_stats['replies'] >= REPLY_LIMIT:
+                return False
+
+            # Check tweet age
+            if tweet['age_minutes'] > TWEET_AGE_LIMIT:
+                return False
+
+            return True
+        except Exception as e:
+            print(f"Error in should_engage: {str(e)}")
+            return False
 
     def generate_quick_reply(self, tweet):
         """Enhanced quick reply generation"""
@@ -363,6 +342,7 @@ class TwitterBot:
             
             engagement_suffix = random.choice(ENGAGEMENT_PATTERNS['engagement'])
             
+            time.sleep(2)  # Rate limiting delay
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
@@ -403,6 +383,7 @@ class TwitterBot:
 
         print(f"\nPosting reply: {reply_text}")
         try:
+            time.sleep(5)  # Rate limiting delay
             response = self.twitter.post(
                 "https://api.twitter.com/2/tweets",
                 json={
@@ -411,7 +392,6 @@ class TwitterBot:
                 }
             )
             print(f"Post reply response: {response.status_code}")
-            print(f"Response content: {response.text}")
             
             if response.status_code == 201:
                 print("✅ Reply posted successfully!")
@@ -440,6 +420,33 @@ class TwitterBot:
         except Exception as e:
             print(f"Error processing tweet: {str(e)}")
 
+    def reply_to_replies(self):
+        """Reply to replies on our tweets"""
+        try:
+            print("Checking for replies...")
+            time.sleep(15)  # Rate limiting delay
+            response = self.twitter.get(
+                f"https://api.twitter.com/2/users/{self.username}/mentions",
+                params={
+                    "max_results": 10,
+                    "tweet.fields": "created_at,in_reply_to_user_id"
+                }
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Failed to get mentions: {response.text}")
+                return False
+
+            mentions = response.json().get('data', [])
+            for mention in mentions:
+                if mention['in_reply_to_user_id'] == self.username:
+                    self.process_tweet(mention)
+                time.sleep(60)  # Wait between processing mentions
+            return True
+        except Exception as e:
+            print(f"Error processing replies: {str(e)}")
+            return False
+
 def main():
     print("\n=== Starting Bot ===\n")
     
@@ -455,7 +462,7 @@ def main():
             try:
                 print("Checking growth metrics...")
                 bot.check_growth_metrics()
-                print("Growth metrics checked")
+                time.sleep(60)  # Wait between API calls
                 
                 print("Finding recent tweets...")
                 recent_tweets = bot.find_recent_tweets()
@@ -466,18 +473,19 @@ def main():
                     if bot.should_engage(tweet):
                         print(f"Engaging with tweet from {tweet['author']}")
                         bot.process_tweet(tweet)
+                        time.sleep(60)  # Wait between engagements
                 
                 print("Processing replies...")
                 bot.reply_to_replies()
-                print("Replies processed")
+                
+                print("Waiting 15 minutes before next iteration...")
+                time.sleep(900)  # 15 minutes between iterations
                 
             except Exception as e:
                 print(f"Error in main loop: {str(e)}")
                 print("Continuing to next iteration...")
+                time.sleep(300)  # Wait 5 minutes on error
                 continue
-            
-            print("Waiting 5 minutes before next check...")
-            time.sleep(300)
             
     except Exception as e:
         print(f"\n❌ Fatal error: {str(e)}")
