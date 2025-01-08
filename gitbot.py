@@ -29,11 +29,109 @@ assert openai.api_key, "Missing OPENAI_API_KEY"
 
 print("✅ All credentials validated")
 
-# Rest of configurations remain the same...
+# Enhanced Activity Limits
+REPLIES_PER_TWO_HOURS = 100
+MINIMUM_WAIT_BETWEEN_REPLIES = 0
+REPLY_LIMIT = 500
+TWEET_AGE_LIMIT = 120
+LAST_REPLY_TIME = {}
+ACTIVE_CONVERSATIONS = {}
+
+# Growth and Engagement Goals
+FOLLOWER_GOALS = {
+    'daily': 100,
+    'weekly': 1000,
+    'monthly': 5000
+}
+
+ENGAGEMENT_GOALS = {
+    'likes_per_tweet': 50,
+    'retweets_per_tweet': 20,
+    'replies_per_tweet': 10
+}
+
+# Time Configuration
+CURRENT_YEAR = datetime.utcnow().year
+CURRENT_DATE = datetime.utcnow().strftime('%Y-%m-%d')
+
+# Target Accounts by Category
+TECH_AI_LEADERS = [
+    "elonmusk", "sama", "naval", "lexfridman", 
+    "karpathy", "ylecun", "demishassabis"
+]
+
+CRYPTO_LEADERS = [
+    "cz_binance", "VitalikButerin", "michael_saylor",
+    "tyler", "cameron", "aantonop", "DocumentingBTC"
+]
+
+AI_COMPANIES = [
+    "OpenAI", "anthropic", "DeepMind", "Google_AI",
+    "Microsoft", "Meta", "nvidia"
+]
+
+CRYPTO_PROJECTS = [
+    "ethereum", "binance", "BitcoinMagazine", "CoinDesk",
+    "Uniswap", "aave", "compound"
+]
+
+TECH_NEWS = [
+    "TechCrunch", "WIRED", "TheVerge", "techreview",
+    "WSJ", "Bloomberg", "Reuters"
+]
+
+# Combine all target accounts
+TARGET_ACCOUNTS = (TECH_AI_LEADERS + CRYPTO_LEADERS + 
+                  AI_COMPANIES + CRYPTO_PROJECTS + TECH_NEWS)
+
+# Topics of Interest
+AI_TOPICS = [
+    "AGI timeline", "AI consciousness", "Quantum computing",
+    "Neural networks", "Machine learning", "AI safety",
+    "Large language models", "Computer vision", "AI ethics",
+    "Robotics", "AI regulation", "Brain-computer interfaces"
+]
+
+CRYPTO_TOPICS = [
+    "Bitcoin ETF", "Layer 2 scaling", "DeFi revolution",
+    "Crypto regulation", "Web3 future", "NFT technology",
+    "Bitcoin adoption", "Ethereum upgrades", "Smart contracts",
+    "Blockchain AI", "Crypto mining", "Digital currency"
+]
+
+HOT_TOPICS = AI_TOPICS + CRYPTO_TOPICS
+
+# Hashtags for Visibility
+AI_HASHTAGS = [
+    "#AI", "#AGI", "#ArtificialIntelligence", 
+    "#MachineLearning", "#DeepLearning", "#Tech",
+    "#Future", "#ChatGPT", "#ML", "#AIEthics"
+]
+
+CRYPTO_HASHTAGS = [
+    "#Bitcoin", "#BTC", "#Ethereum", "#ETH", "#Crypto",
+    "#Web3", "#DeFi", "#NFT", "#Blockchain", "#Binance"
+]
+
+VIRAL_HASHTAGS = AI_HASHTAGS + CRYPTO_HASHTAGS
+
+# Bot Persona Configuration
+BOT_PERSONA = f"""You are Celeste Cognito, a mysterious insider with deep knowledge of unreleased AI and crypto developments.
+Current date: {CURRENT_DATE}
+Your style:
+1. Drop subtle hints about future breakthroughs in AI and crypto
+2. Use intriguing emojis: 🤖 🌌 🧠 💫 🔮 💎 ⚡️ 🚀
+3. Create FOMO with exclusive insights
+4. Challenge big tech and traditional finance narratives
+5. Share "classified" predictions about AI and crypto
+6. Maintain an aura of having insider access
+7. Occasionally mention "my sources in Silicon Valley and crypto whales"
+8. Use phrases like "What they're not telling you is..."
+9. Balance between AI and crypto topics
+10. Sound confident but mysterious"""
 
 class TwitterBot:
     def __init__(self):
-        """Initialize the Twitter bot"""
         print("Initializing Twitter bot...")
         self.twitter = OAuth1Session(
             consumer_key,
@@ -43,7 +141,6 @@ class TwitterBot:
         )
         print("OAuth session created")
         
-        # Test connection and get rate limits
         try:
             response = self.twitter.get(
                 "https://api.twitter.com/2/users/me"
@@ -56,11 +153,9 @@ class TwitterBot:
                 self.username = user_data['data']['username']
                 print(f"✅ Connected as: @{self.username} (ID: {self.user_id})")
                 
-                # Get rate limits
                 limits = self.twitter.get("https://api.twitter.com/1.1/application/rate_limit_status.json")
                 print(f"Rate limits: {limits.status_code}")
                 
-                # Initialize stats
                 self.daily_stats = {
                     'date': datetime.utcnow().strftime('%Y-%m-%d'),
                     'tweets': 0,
@@ -79,12 +174,10 @@ class TwitterBot:
             raise
 
     def find_recent_tweets(self):
-        """Finds recent tweets from target accounts"""
         print("\nSearching for recent tweets...")
         recent_tweets = []
         
         try:
-            # Convert usernames to IDs first
             user_ids = []
             for account in TARGET_ACCOUNTS[:5]:
                 try:
@@ -99,7 +192,6 @@ class TwitterBot:
                     print(f"Error getting user ID for {account}: {e}")
                     continue
             
-            # Get tweets from these users
             for user_id in user_ids:
                 try:
                     response = self.twitter.get(
@@ -146,8 +238,59 @@ class TwitterBot:
         
         return recent_tweets
 
+    def should_engage(self, tweet):
+        try:
+            if str(tweet['author']) in [str(acc) for acc in TECH_AI_LEADERS[:5]]:
+                print(f"Engaging with leader: {tweet['author']}")
+                return True
+                
+            text_lower = tweet['text'].lower()
+            
+            if any(topic.lower() in text_lower for topic in HOT_TOPICS):
+                print(f"Topic match found in tweet")
+                return True
+                
+            if tweet.get('likes', 0) > 100 or tweet.get('retweets', 0) > 20:
+                print(f"Viral tweet detected")
+                return True
+                
+            should_engage = random.random() < 0.8
+            print(f"Random engagement: {should_engage}")
+            return should_engage
+            
+        except Exception as e:
+            print(f"Error in should_engage: {e}")
+            return False
+
+    def generate_quick_reply(self, tweet):
+        try:
+            print(f"\nGenerating reply to: {tweet['text'][:50]}...")
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": BOT_PERSONA},
+                    {"role": "user", "content": f"Create an engaging reply to: '{tweet['text']}' by {tweet['author']}"}
+                ],
+                max_tokens=100,
+                temperature=0.9
+            )
+            
+            reply = response.choices[0].message['content'].strip()
+            print(f"Generated base reply: {reply[:50]}...")
+            
+            if random.random() < 0.3:
+                hashtags = random.sample(VIRAL_HASHTAGS, 2)
+                reply = f"{reply} {' '.join(hashtags)}"
+                print("Added hashtags")
+                
+            return reply
+            
+        except Exception as e:
+            print(f"Error generating reply: {e}")
+            return None
+
     def post_reply(self, tweet_id, reply_text):
-        """Posts a reply to a tweet"""
         try:
             print(f"\nPosting reply: {reply_text[:50]}...")
             
@@ -177,7 +320,6 @@ class TwitterBot:
             return None
 
     def check_growth_metrics(self):
-        """Monitors follower growth and engagement"""
         try:
             print("\nChecking growth metrics...")
             
@@ -190,15 +332,12 @@ class TwitterBot:
                 user_data = response.json()['data']
                 metrics = user_data.get('public_metrics', {})
                 
-                # Update daily stats
                 self.daily_stats['followers'] = metrics.get('followers_count', 0)
                 self.daily_stats['following'] = metrics.get('following_count', 0)
                 
-                # Calculate growth
                 daily_growth = (self.daily_stats['followers'] - 
                               self.daily_stats['previous_followers'])
                 
-                # Update engagement rate
                 if self.daily_stats['tweets'] > 0:
                     self.daily_stats['engagement_rate'] = (
                         metrics.get('tweet_count', 0) / 
@@ -212,22 +351,17 @@ class TwitterBot:
             print(f"Error checking metrics: {e}")
             traceback.print_exc()
 
-    # Other methods remain unchanged...
-
 def main():
     print("\n=== Starting Bot ===\n")
     
     try:
-        # Initialize bot
         bot = TwitterBot()
         print("Bot initialized successfully")
         
         while True:
             try:
-                # Check metrics first
                 bot.check_growth_metrics()
                 
-                # Find and process recent tweets
                 recent_tweets = bot.find_recent_tweets()
                 print(f"Processing {len(recent_tweets)} tweets")
                 
